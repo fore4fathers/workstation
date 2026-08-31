@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aw
+      POSTGRES_PASSWORD: aw
+      POSTGRES_DB: ai_workstation
+    ports:
+      - "127.0.0.1:5435:5432"
+    volumes:
+      - aw_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aw -d ai_workstation"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  aw_pg:
