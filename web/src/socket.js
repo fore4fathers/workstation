@@ -2,15 +2,26 @@ import { io } from 'socket.io-client';
 import { getToken } from './api.js';
 
 let socket;
+let authedToken;
+
+export function connectSocket() {
+  const token = getToken();
+  if (!token) {
+    disconnectSocket();
+    return null;
+  }
+  if (socket && authedToken === token) return socket;
+  disconnectSocket();
+  authedToken = token;
+  socket = io({
+    auth: { token },
+    transports: ['websocket', 'polling'],
+  });
+  return socket;
+}
 
 export function getSocket() {
-  if (!socket) {
-    socket = io({
-      auth: { token: getToken() },
-      transports: ['websocket', 'polling'],
-    });
-  }
-  return socket;
+  return connectSocket();
 }
 
 export function disconnectSocket() {
@@ -18,4 +29,5 @@ export function disconnectSocket() {
     socket.disconnect();
     socket = null;
   }
+  authedToken = null;
 }

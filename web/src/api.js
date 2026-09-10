@@ -29,3 +29,24 @@ export async function api(path, { method = 'GET', body, headers } = {}) {
   }
   return data;
 }
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadImages(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return [];
+  const payload = [];
+  for (const file of files) {
+    const data = await readFileAsDataUrl(file);
+    payload.push({ name: file.name, mime: file.type, data });
+  }
+  const result = await api('/api/admin/uploads', { method: 'POST', body: { files: payload } });
+  return result.files || [];
+}

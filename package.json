@@ -3,7 +3,11 @@
   "private": true,
   "workspaces": ["server", "web"],
   "scripts": {
-    "demo": "node scripts/demo.js",
+    "dev": "node scripts/dev.js",
+    "build": "npm run build -w web",
+    "start": "npm run build && node server/src/index.js",
+    "seed": "node server/src/sql/seed.js",
+    "demo": "bash demo.sh",
     "test": "npm test -w server"
   }
 }

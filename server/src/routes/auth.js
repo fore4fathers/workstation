@@ -22,12 +22,38 @@ authRouter.post('/login', async (req, res) => {
   res.json({ token, user: publicUser(user) });
 });
 
+authRouter.post('/register', async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+  const display_name = String(req.body?.display_name || '').trim();
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid email required' });
+  if (password.length < 8) return res.status(400).json({ error: 'password must be at least 8 characters' });
+  if (!display_name) return res.status(400).json({ error: 'display_name required' });
+
+  const { rows: existing } = await query('SELECT id FROM users WHERE email = $1', [email]);
+  if (existing[0]) return res.status(409).json({ error: 'email already registered' });
+
+  const password_hash = await bcrypt.hash(password, 10);
+  const { rows } = await query(
+    `INSERT INTO users (email, password_hash, display_name, role)
+     VALUES ($1, $2, $3, 'worker') RETURNING id, email, display_name, role, avatar_url, lifetime_completed`,
+    [email, password_hash, display_name],
+  );
+  const user = rows[0];
+  await query(
+    'INSERT INTO accounts (user_id, balance, frozen, pending) VALUES ($1, 0, 0, 0)',
+    [user.id],
+  );
+  const token = signToken(user);
+  res.status(201).json({ token, user: publicUser(user) });
+});
+
 export const meRouter = Router();
 
 meRouter.get('/', requireAuth, async (req, res) => {
   const stats = await workerStats(req.user.id, req.user.lifetime_completed);
   const { rows: acct } = await query(
-    'SELECT balance, frozen FROM accounts WHERE user_id = $1',
+    'SELECT balance, frozen, pending FROM accounts WHERE user_id = $1',
     [req.user.id],
   );
   res.json({
@@ -35,6 +61,7 @@ meRouter.get('/', requireAuth, async (req, res) => {
     account: {
       balance: Number(acct[0]?.balance || 0),
       frozen: Number(acct[0]?.frozen || 0),
+      pending: Number(acct[0]?.pending || 0),
     },
     stats,
   });

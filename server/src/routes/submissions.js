@@ -81,35 +81,46 @@ submissionsRouter.post('/:id/submit', async (req, res) => {
         saved.push(rows[0]);
       }
 
+      const pay = dollarsFromCents(task.pay_cents);
+      const payoutStatus = pay > 0 ? 'pending' : 'released';
       await client.query(
-        `UPDATE assignments SET status = 'submitted', submitted_at = NOW() WHERE id = $1`,
-        [assignment.id],
+        `UPDATE assignments
+         SET status = 'submitted', submitted_at = NOW(), payout_status = $2
+         WHERE id = $1`,
+        [assignment.id, payoutStatus],
       );
 
-      const pay = dollarsFromCents(task.pay_cents);
-      await client.query(
-        `UPDATE accounts SET balance = balance + $1 WHERE user_id = $2`,
-        [pay, req.user.id],
-      );
+      if (pay > 0) {
+        await client.query(
+          `UPDATE accounts SET pending = pending + $1 WHERE user_id = $2`,
+          [pay, req.user.id],
+        );
+        await client.query(
+          `INSERT INTO ledger (user_id, kind, amount, ref_type, ref_id, note)
+           VALUES ($1, 'task_payout_hold', $2, 'assignment', $3, $4)`,
+          [req.user.id, pay, assignment.id, `Pending payout for task ${taskId}`],
+        );
+      }
+
       await client.query(
         `UPDATE users SET lifetime_completed = COALESCE(lifetime_completed, 0) + 1 WHERE id = $1`,
         [req.user.id],
       );
-      await client.query(
-        `INSERT INTO ledger (user_id, kind, amount, ref_type, ref_id, note)
-         VALUES ($1, 'task_payout', $2, 'task', $3, $4)`,
-        [req.user.id, pay, taskId, `Payout for task ${taskId}`],
-      );
 
       const { rows: acct } = await client.query(
-        'SELECT balance, frozen FROM accounts WHERE user_id = $1',
+        'SELECT balance, frozen, pending FROM accounts WHERE user_id = $1',
         [req.user.id],
       );
       return {
         assignment_id: assignment.id,
         pay_dollars: pay,
+        payout_status: payoutStatus,
         submissions: saved,
-        account: { balance: Number(acct[0].balance), frozen: Number(acct[0].frozen) },
+        account: {
+          balance: Number(acct[0].balance),
+          frozen: Number(acct[0].frozen),
+          pending: Number(acct[0].pending),
+        },
       };
     });
     res.json(result);

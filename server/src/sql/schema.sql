@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id            SERIAL PRIMARY KEY,
   email         TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
@@ -12,17 +12,19 @@ CREATE TABLE users (
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE accounts (
+CREATE TABLE IF NOT EXISTS accounts (
   user_id  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   balance  NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (balance >= 0),
-  frozen   NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (frozen >= 0)
+  frozen   NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (frozen >= 0),
+  pending  NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (pending >= 0)
 );
 
-CREATE TABLE ledger (
+CREATE TABLE IF NOT EXISTS ledger (
   id          SERIAL PRIMARY KEY,
   user_id     INTEGER NOT NULL REFERENCES users(id),
   kind        TEXT NOT NULL CHECK (kind IN (
-                'task_payout','withdrawal_hold','withdrawal_release',
+                'task_payout','task_payout_hold','task_payout_void',
+                'withdrawal_hold','withdrawal_release',
                 'withdrawal_debit','admin_adjust')),
   amount      NUMERIC(12,2) NOT NULL,
   ref_type    TEXT,
@@ -31,7 +33,7 @@ CREATE TABLE ledger (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE withdrawals (
+CREATE TABLE IF NOT EXISTS withdrawals (
   id          SERIAL PRIMARY KEY,
   user_id     INTEGER NOT NULL REFERENCES users(id),
   amount      NUMERIC(12,2) NOT NULL CHECK (amount > 0),
@@ -43,7 +45,7 @@ CREATE TABLE withdrawals (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
   id            SERIAL PRIMARY KEY,
   created_by    INTEGER NOT NULL REFERENCES users(id),
   type          TEXT NOT NULL CHECK (type IN ('image','text','intent')),
@@ -55,25 +57,27 @@ CREATE TABLE tasks (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE task_items (
+CREATE TABLE IF NOT EXISTS task_items (
   id         SERIAL PRIMARY KEY,
   task_id    INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   sort_order INTEGER NOT NULL DEFAULT 0,
   payload    JSONB NOT NULL
 );
 
-CREATE TABLE assignments (
-  id           SERIAL PRIMARY KEY,
-  task_id      INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  worker_id    INTEGER NOT NULL REFERENCES users(id),
-  status       TEXT NOT NULL DEFAULT 'available'
-                 CHECK (status IN ('available','in_progress','submitted')),
-  started_at   TIMESTAMPTZ,
-  submitted_at TIMESTAMPTZ,
+CREATE TABLE IF NOT EXISTS assignments (
+  id             SERIAL PRIMARY KEY,
+  task_id        INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  worker_id      INTEGER NOT NULL REFERENCES users(id),
+  status         TEXT NOT NULL DEFAULT 'available'
+                   CHECK (status IN ('available','in_progress','submitted')),
+  payout_status  TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (payout_status IN ('none','pending','released','voided')),
+  started_at     TIMESTAMPTZ,
+  submitted_at   TIMESTAMPTZ,
   UNIQUE (task_id, worker_id)
 );
 
-CREATE TABLE submissions (
+CREATE TABLE IF NOT EXISTS submissions (
   id            SERIAL PRIMARY KEY,
   assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
   item_id       INTEGER NOT NULL REFERENCES task_items(id) ON DELETE CASCADE,
@@ -83,14 +87,14 @@ CREATE TABLE submissions (
   UNIQUE (assignment_id, item_id)
 );
 
-CREATE TABLE conversations (
+CREATE TABLE IF NOT EXISTS conversations (
   id           SERIAL PRIMARY KEY,
   worker_id    INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
   id               SERIAL PRIMARY KEY,
   conversation_id  INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   sender_id        INTEGER NOT NULL REFERENCES users(id),
@@ -98,14 +102,14 @@ CREATE TABLE messages (
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE conversation_reads (
+CREATE TABLE IF NOT EXISTS conversation_reads (
   conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   last_read_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (conversation_id, user_id)
 );
 
-CREATE INDEX idx_ledger_user ON ledger(user_id, created_at DESC);
-CREATE INDEX idx_withdrawals_status ON withdrawals(status);
-CREATE INDEX idx_tasks_type ON tasks(type) WHERE is_published;
-CREATE INDEX idx_messages_conv ON messages(conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_ledger_user ON ledger(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks(type) WHERE is_published;
+CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, created_at);

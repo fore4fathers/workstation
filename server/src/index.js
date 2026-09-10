@@ -12,13 +12,16 @@ import { submissionsRouter } from './routes/submissions.js';
 import { walletRouter, leadersRouter } from './routes/wallet.js';
 import { chatRouter } from './routes/chat.js';
 import { adminRouter } from './routes/admin.js';
+import { migrate } from './sql/migrate.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const webDir = path.resolve(here, '../../web');
+const distDir = path.resolve(here, '../../web/dist');
+const distIndex = path.join(distDir, 'index.html');
+const hasDist = fs.existsSync(distIndex);
 
 export const app = express();
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '8mb' }));
 
 fs.mkdirSync(config.uploadDir, { recursive: true });
 app.use('/uploads', express.static(config.uploadDir));
@@ -36,10 +39,12 @@ app.use('/api/leaders', leadersRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/admin', adminRouter);
 
-app.use(express.static(webDir));
-app.get(/^\/(?!api\/|uploads\/|health).*/, (_req, res) => {
-  res.sendFile(path.join(webDir, 'index.html'));
-});
+if (hasDist) {
+  app.use(express.static(distDir));
+  app.get(/^\/(?!api\/|uploads\/|health|socket\.io\/|\.[\w]+$).*/, (_req, res) => {
+    res.sendFile(distIndex);
+  });
+}
 
 export function createHttpServer() {
   const server = http.createServer(app);
@@ -49,8 +54,15 @@ export function createHttpServer() {
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
-  const server = createHttpServer();
-  server.listen(config.port, '127.0.0.1', () => {
-    console.log(`ai-workstation on http://127.0.0.1:${config.port}`);
-  });
+  migrate()
+    .then(() => {
+      const server = createHttpServer();
+      server.listen(config.port, '127.0.0.1', () => {
+        console.log(`ai-workstation on http://127.0.0.1:${config.port}`);
+      });
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

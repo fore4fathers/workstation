@@ -94,8 +94,25 @@ describe('payout and wallet', () => {
         body: { answers: [{ item_id: itemId, answer: 'positive' }] },
       });
       assert.equal(submitted.status, 200);
+      const afterSubmit = await getBalance(john.user.id);
+      assert.equal(afterSubmit.balance, before.balance);
+      assert.equal(Number((afterSubmit.pending - before.pending).toFixed(2)), 0.85);
+
+      const tooSoon = await req(port, '/api/wallet/withdraw', {
+        method: 'POST',
+        token: john.token,
+        body: { amount: before.balance + 0.5 },
+      });
+      assert.equal(tooSoon.status, 400);
+
+      const released = await req(port, `/api/admin/payouts/${submitted.body.assignment_id}/release`, {
+        method: 'POST',
+        token: admin.token,
+      });
+      assert.equal(released.status, 200);
       const after = await getBalance(john.user.id);
       assert.equal(Number((after.balance - before.balance).toFixed(2)), 0.85);
+      assert.equal(after.pending, before.pending);
       const again = await req(port, `/api/tasks/${taskId}/submit`, {
         method: 'POST',
         token: john.token,
@@ -131,6 +148,82 @@ describe('payout and wallet', () => {
       const afterReject = await getBalance(john.user.id);
       assert.equal(afterReject.balance, beforeReject.balance);
       assert.equal(Number((afterReject.frozen - (beforeReject.frozen - 5)).toFixed(2)), 0);
+    });
+  });
+});
+
+describe('register and disable', () => {
+  it('signs up a worker and lets admin disable them', async () => {
+    await withServer(async (port) => {
+      const created = await req(port, '/api/auth/register', {
+        method: 'POST',
+        body: { email: 'new@demo.local', password: 'password1', display_name: 'Newt' },
+      });
+      assert.equal(created.status, 201);
+      assert.equal(created.body.user.role, 'worker');
+      const me = await req(port, '/api/me', { token: created.body.token });
+      assert.equal(me.status, 200);
+      assert.equal(me.body.account.balance, 0);
+      assert.equal(me.body.account.pending, 0);
+
+      const dup = await req(port, '/api/auth/register', {
+        method: 'POST',
+        body: { email: 'new@demo.local', password: 'password1', display_name: 'Newt' },
+      });
+      assert.equal(dup.status, 409);
+
+      const admin = await login(port, 'admin@demo.local', 'admin123');
+      const workers = await req(port, '/api/admin/workers', { token: admin.token });
+      assert.equal(workers.status, 200);
+      const row = workers.body.workers.find((w) => w.email === 'new@demo.local');
+      assert.ok(row);
+      const off = await req(port, `/api/admin/workers/${row.id}/active`, {
+        method: 'POST',
+        token: admin.token,
+        body: { is_active: false },
+      });
+      assert.equal(off.status, 200);
+      const blocked = await req(port, '/api/auth/login', {
+        method: 'POST',
+        body: { email: 'new@demo.local', password: 'password1' },
+      });
+      assert.equal(blocked.status, 401);
+    });
+  });
+});
+
+describe('payout void', () => {
+  it('voids pending earnings so they never become available', async () => {
+    await withServer(async (port) => {
+      const admin = await login(port, 'admin@demo.local', 'admin123');
+      const john = await login(port, 'john@demo.local', 'john123');
+      const created = await req(port, '/api/admin/tasks', {
+        method: 'POST',
+        token: admin.token,
+        body: {
+          type: 'text',
+          title: 'Void me',
+          pay_cents: 200,
+          items: [{ text: 'hello', labels: ['positive', 'negative'], gold: 'positive' }],
+        },
+      });
+      const taskId = created.body.task.id;
+      const itemId = created.body.items[0].id;
+      const before = await getBalance(john.user.id);
+      const submitted = await req(port, `/api/tasks/${taskId}/submit`, {
+        method: 'POST',
+        token: john.token,
+        body: { answers: [{ item_id: itemId, answer: 'positive' }] },
+      });
+      assert.equal(submitted.status, 200);
+      const voided = await req(port, `/api/admin/payouts/${submitted.body.assignment_id}/void`, {
+        method: 'POST',
+        token: admin.token,
+      });
+      assert.equal(voided.status, 200);
+      const after = await getBalance(john.user.id);
+      assert.equal(after.balance, before.balance);
+      assert.equal(after.pending, before.pending);
     });
   });
 });

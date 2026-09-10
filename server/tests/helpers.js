@@ -37,6 +37,13 @@ export async function login(port, email, password) {
 }
 
 export async function getBalance(userId) {
-  const { rows } = await query('SELECT balance, frozen FROM accounts WHERE user_id = $1', [userId]);
-  return { balance: Number(rows[0].balance), frozen: Number(rows[0].frozen) };
+  const { rows } = await query(
+    'SELECT balance, frozen, pending FROM accounts WHERE user_id = $1',
+    [userId],
+  );
+  return {
+    balance: Number(rows[0].balance),
+    frozen: Number(rows[0].frozen),
+    pending: Number(rows[0].pending || 0),
+  };
 }

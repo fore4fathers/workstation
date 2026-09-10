@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import { pool, query } from '../db.js';
+import { migrate } from './migrate.js';
 
 const workers = [
   { email: 'john@demo.local', name: 'John', password: 'john123', balance: 189.9, lifetime: 142 },
@@ -28,6 +29,7 @@ function intentItem(utterance, gold) {
 }
 
 export async function seed({ reset = true } = {}) {
+  await migrate();
   if (reset) {
     await query('TRUNCATE users CASCADE');
   }
@@ -39,7 +41,7 @@ export async function seed({ reset = true } = {}) {
     ['admin@demo.local', adminHash],
   );
   const adminId = adminRows[0].id;
-  await query('INSERT INTO accounts (user_id, balance, frozen) VALUES ($1, 0, 0)', [adminId]);
+  await query('INSERT INTO accounts (user_id, balance, frozen, pending) VALUES ($1, 0, 0, 0)', [adminId]);
 
   for (const w of workers) {
     const hash = await bcrypt.hash(w.password, 4);
@@ -49,7 +51,7 @@ export async function seed({ reset = true } = {}) {
       [w.email, hash, w.name, w.lifetime],
     );
     await query(
-      'INSERT INTO accounts (user_id, balance, frozen) VALUES ($1,$2,0)',
+      'INSERT INTO accounts (user_id, balance, frozen, pending) VALUES ($1,$2,0,0)',
       [rows[0].id, w.balance],
     );
     if (w.balance) {

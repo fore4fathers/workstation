@@ -7,7 +7,7 @@ walletRouter.use(requireAuth);
 
 walletRouter.get('/', async (req, res) => {
   const { rows: acct } = await query(
-    'SELECT balance, frozen FROM accounts WHERE user_id = $1',
+    'SELECT balance, frozen, pending FROM accounts WHERE user_id = $1',
     [req.user.id],
   );
   const { rows: ledger } = await query(
@@ -24,6 +24,7 @@ walletRouter.get('/', async (req, res) => {
     account: {
       balance: Number(acct[0]?.balance || 0),
       frozen: Number(acct[0]?.frozen || 0),
+      pending: Number(acct[0]?.pending || 0),
     },
     ledger: ledger.map((l) => ({ ...l, amount: Number(l.amount) })),
     withdrawals: withdrawals.map((w) => ({ ...w, amount: Number(w.amount) })),
@@ -64,12 +65,16 @@ walletRouter.post('/withdraw', async (req, res) => {
         [req.user.id, amount, w[0].id],
       );
       const { rows: after } = await client.query(
-        'SELECT balance, frozen FROM accounts WHERE user_id = $1',
+        'SELECT balance, frozen, pending FROM accounts WHERE user_id = $1',
         [req.user.id],
       );
       return {
         withdrawal: { ...w[0], amount: Number(w[0].amount) },
-        account: { balance: Number(after[0].balance), frozen: Number(after[0].frozen) },
+        account: {
+          balance: Number(after[0].balance),
+          frozen: Number(after[0].frozen),
+          pending: Number(after[0].pending),
+        },
       };
     });
     res.json(result);
