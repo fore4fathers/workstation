@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
-import { money, when } from '../../format.js';
+import { ledgerLabel, money, when } from '../../format.js';
 import { IconBack } from '../../icons.jsx';
 import { Spinner } from '../../ui.jsx';
 
@@ -73,7 +73,7 @@ export default function Wallet() {
             Request
           </button>
         </form>
-        <h2 className="section-title">History</h2>
+        <h2 className="section-title">Withdrawals</h2>
         {(data?.withdrawals || []).map((w) => (
           <div key={w.id} className="task-card">
             <div className="grow">
@@ -83,7 +83,18 @@ export default function Wallet() {
             <span className={`pill ${w.status.toLowerCase()}`}>{w.status}</span>
           </div>
         ))}
-        {data && !data.withdrawals.length ? <p className="meta">No withdrawals yet.</p> : null}
+        {data && !data.withdrawals.length ? <p className="meta">None yet.</p> : null}
+        <h2 className="section-title">Ledger</h2>
+        {(data?.ledger || []).map((l) => (
+          <div key={l.id} className="task-card">
+            <div className="grow">
+              <b>{ledgerLabel(l.kind)}</b>
+              <div className="meta">{when(l.created_at)}{l.note ? ` · ${l.note}` : ''}</div>
+            </div>
+            <span className="money">{money(l.amount)}</span>
+          </div>
+        ))}
+        {data && !data.ledger.length ? <p className="meta">No entries.</p> : null}
       </div>
     </>
   );

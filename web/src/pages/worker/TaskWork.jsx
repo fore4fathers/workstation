@@ -86,7 +86,7 @@ export default function TaskWork() {
 
   return (
     <>
-      <div className="topbar">
+      <div className="topbar keep">
         <Link className="icon-btn" to="/tasks" aria-label="Back"><IconBack /></Link>
         <h1>{task.title}</h1>
         <span className="meta">{idx + 1}/{items.length}</span>

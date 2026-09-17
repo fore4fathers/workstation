@@ -61,3 +61,15 @@ export function itemPreview(item, type) {
 export function itemLabels(item, type) {
   return type === 'intent' ? (item.intents || []) : (item.labels || []);
 }
+
+export function ledgerLabel(kind) {
+  return {
+    task_payout_hold: 'Pending pay',
+    task_payout: 'Pay released',
+    task_payout_void: 'Pay voided',
+    withdrawal_hold: 'Withdraw hold',
+    withdrawal_release: 'Withdraw rejected',
+    withdrawal_debit: 'Withdrawn',
+    admin_adjust: 'Adjustment',
+  }[kind] || kind;
+}

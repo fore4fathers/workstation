@@ -55,7 +55,7 @@ export default function Chat({ session }) {
 
   return (
     <>
-      <div className="topbar">
+      <div className="topbar keep">
         <Link className="icon-btn" to="/profile" aria-label="Back"><IconBack /></Link>
         <h1>Support</h1>
         <span />

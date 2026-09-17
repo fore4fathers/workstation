@@ -20,7 +20,7 @@ export default function AdminLayout({ session }) {
     <div className={`admin-shell${compact ? ' is-compact' : ''}`}>
       <header className="site-nav admin-nav-bar">
         <NavLink to="/" end className="brand">AI Workstation</NavLink>
-        <nav className="site-nav-links" aria-label="Admin">
+        <nav className="site-nav-links admin-links" aria-label="Admin">
           {links.map((l) => (
             <NavLink key={l.to} to={l.to} end={l.end} className={({ isActive }) => (isActive ? 'active' : '')}>
               {l.label}
