@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api } from '../../api.js';
 import { IconBack } from '../../icons.jsx';
-import { Spinner } from '../../ui.jsx';
+import { Overlay, Spinner } from '../../ui.jsx';
 
 export default function TaskWork() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const tier = useOutletContext()?.session?.user?.tier ?? 2;
+  const [locked, setLocked] = useState(false);
   const [task, setTask] = useState(null);
   const [items, setItems] = useState([]);
   const [idx, setIdx] = useState(0);
@@ -21,6 +23,12 @@ export default function TaskWork() {
       try {
         const data = await api(`/api/tasks/${id}`);
         if (cancelled) return;
+        const type = data.task?.type;
+        if ((type === 'text' || type === 'intent') && tier < 3) {
+          setTask(data.task);
+          setLocked(true);
+          return;
+        }
         setTask(data.task);
         setItems(data.items || []);
         await api(`/api/tasks/${id}/start`, { method: 'POST' }).catch(() => {});
@@ -29,7 +37,20 @@ export default function TaskWork() {
       }
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, tier]);
+
+  if (locked) {
+    const label = task?.type === 'text' ? 'Text classification' : 'Rate AI responses';
+    return (
+      <div className="gate-back" role="presentation">
+        <div className="gate-dialog" role="dialog" aria-modal="true">
+          <h2>{label}</h2>
+          <p>This is only available on Gold and Platinum.</p>
+          <button type="button" className="primary" onClick={() => navigate('/')}>OK</button>
+        </div>
+      </div>
+    );
+  }
 
   if (!task && error) {
     return (
@@ -40,11 +61,7 @@ export default function TaskWork() {
     );
   }
   if (!task || !items.length) {
-    return (
-      <div className="page work-busy">
-        <Spinner size={28} />
-      </div>
-    );
+    return <Overlay title="Preparing task" sub="Loading items" />;
   }
 
   const item = items[idx];
@@ -95,10 +112,10 @@ export default function TaskWork() {
         <span style={{ width: `${((idx + (phase === 'out' ? 1 : 0)) / items.length) * 100}%` }} />
       </div>
       <div className="page">
+        {busy ? <Overlay title="Submitting" sub="Scoring your answers" /> : null}
+        {phase === 'out' && !busy ? <Overlay title="Next item" /> : null}
         {busy ? (
-          <div className="work-busy">
-            <Spinner size={28} />
-          </div>
+          <div className="work-busy" />
         ) : (
           <div className={`work-stage is-${phase}`}>
             {task.type === 'image' ? (

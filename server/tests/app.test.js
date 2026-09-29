@@ -157,18 +157,38 @@ describe('register and disable', () => {
     await withServer(async (port) => {
       const created = await req(port, '/api/auth/register', {
         method: 'POST',
-        body: { email: 'new@demo.local', password: 'password1', display_name: 'Newt' },
+        body: {
+          email: 'new@demo.local',
+          password: 'password1',
+          first_name: 'Newt',
+          last_name: 'Demo',
+          phone: '5550100',
+          access_code: 'AW-BETA',
+        },
       });
       assert.equal(created.status, 201);
-      assert.equal(created.body.user.role, 'worker');
-      const me = await req(port, '/api/me', { token: created.body.token });
+      assert.equal(created.body.needs_verification, true);
+      const verified = await req(port, '/api/auth/verify-email', {
+        method: 'POST',
+        body: { email: 'new@demo.local', code: created.body.dev_code },
+      });
+      assert.equal(verified.status, 200);
+      assert.equal(verified.body.user.role, 'worker');
+      const me = await req(port, '/api/me', { token: verified.body.token });
       assert.equal(me.status, 200);
       assert.equal(me.body.account.balance, 0);
       assert.equal(me.body.account.pending, 0);
 
       const dup = await req(port, '/api/auth/register', {
         method: 'POST',
-        body: { email: 'new@demo.local', password: 'password1', display_name: 'Newt' },
+        body: {
+          email: 'new@demo.local',
+          password: 'password1',
+          first_name: 'Newt',
+          last_name: 'Demo',
+          access_code: 'AW-BETA',
+          phone: '5550100',
+        },
       });
       assert.equal(dup.status, 409);
 
@@ -224,6 +244,82 @@ describe('payout void', () => {
       const after = await getBalance(john.user.id);
       assert.equal(after.balance, before.balance);
       assert.equal(after.pending, before.pending);
+    });
+  });
+});
+
+describe('deposit and crypto withdraw', () => {
+  it('credits deposit on approve and requires a saved address for USDT', async () => {
+    await withServer(async (port) => {
+      const admin = await login(port, 'admin@demo.local', 'admin123');
+      const john = await login(port, 'john@demo.local', 'john123');
+      const before = await getBalance(john.user.id);
+      const dep = await req(port, '/api/wallet/deposit', {
+        method: 'POST',
+        token: john.token,
+        body: { amount: 25, method: 'usdt_trc20', tx_ref: 'demo-tx' },
+      });
+      assert.equal(dep.status, 201);
+      const mid = await getBalance(john.user.id);
+      assert.equal(mid.balance, before.balance);
+      const ok = await req(port, `/api/admin/deposits/${dep.body.deposit.id}/approve`, {
+        method: 'POST',
+        token: admin.token,
+      });
+      assert.equal(ok.status, 200);
+      const after = await getBalance(john.user.id);
+      assert.equal(Number((after.balance - before.balance).toFixed(2)), 25);
+
+      const noAddr = await req(port, '/api/wallet/withdraw', {
+        method: 'POST',
+        token: john.token,
+        body: { amount: 1, method: 'usdt_trc20' },
+      });
+      assert.equal(noAddr.status, 400);
+
+      const saved = await req(port, '/api/wallet/addresses', {
+        method: 'POST',
+        token: john.token,
+        body: { cryptocurrency: 'USDT', network: 'TRC20', address: 'Tdemoaddress111', label: 'Main' },
+      });
+      assert.equal(saved.status, 201);
+      const wd = await req(port, '/api/wallet/withdraw', {
+        method: 'POST',
+        token: john.token,
+        body: { amount: 1, method: 'usdt_trc20', address_id: saved.body.address.id },
+      });
+      assert.equal(wd.status, 200);
+      assert.equal(wd.body.withdrawal.method, 'usdt_trc20');
+    });
+  });
+});
+
+describe('check-in', () => {
+  it('checks in once per day and pays a bonus', async () => {
+    await withServer(async (port) => {
+      const created = await req(port, '/api/auth/register', {
+        method: 'POST',
+        body: {
+          email: `cin${Date.now()}@demo.local`,
+          password: 'password1',
+          first_name: 'Cin',
+          last_name: 'Demo',
+          access_code: 'AW-BETA',
+          phone: '5550101',
+        },
+      });
+      const verified = await req(port, '/api/auth/verify-email', {
+        method: 'POST',
+        body: { email: created.body.email, code: created.body.dev_code },
+      });
+      const token = verified.body.token;
+      const before = await getBalance(verified.body.user.id);
+      const first = await req(port, '/api/checkin', { method: 'POST', token });
+      assert.equal(first.status, 201);
+      const after = await getBalance(verified.body.user.id);
+      assert.equal(Number((after.balance - before.balance).toFixed(2)), 0.1);
+      const again = await req(port, '/api/checkin', { method: 'POST', token });
+      assert.equal(again.status, 409);
     });
   });
 });

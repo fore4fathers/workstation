@@ -22,6 +22,9 @@ export function publicUser(row) {
     role: row.role,
     avatar_url: row.avatar_url,
     lifetime_completed: row.lifetime_completed || 0,
+    tier: row.tier || 1,
+    phone: row.phone || '',
+    created_at: row.created_at || null,
   };
 }
 

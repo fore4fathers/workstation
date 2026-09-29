@@ -6,6 +6,7 @@ import { query, withTransaction } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { dollarsFromCents } from '../auth.js';
+import { clampTier, tierInfo } from '../tiers.js';
 import { config } from '../config.js';
 
 const IMAGE_EXT = {
@@ -321,7 +322,7 @@ adminRouter.patch('/tasks/:id', async (req, res) => {
 
 adminRouter.get('/payouts', async (_req, res) => {
   const { rows } = await query(
-    `SELECT a.id, a.worker_id, a.task_id, a.submitted_at, a.payout_status,
+    `SELECT a.id, a.worker_id, a.task_id, a.submitted_at, a.payout_status, a.payout_amount,
             u.display_name, u.email,
             t.title, t.type, t.pay_cents,
             (SELECT COUNT(*) FILTER (WHERE s.is_correct IS NOT NULL)::int
@@ -337,7 +338,7 @@ adminRouter.get('/payouts', async (_req, res) => {
   res.json({
     payouts: rows.map((r) => ({
       ...r,
-      pay_dollars: dollarsFromCents(r.pay_cents),
+      pay_dollars: Number(r.payout_amount) || dollarsFromCents(r.pay_cents),
       accuracy: r.graded > 0 ? Math.round((r.correct / r.graded) * 100) : null,
     })),
   });
@@ -346,7 +347,7 @@ adminRouter.get('/payouts', async (_req, res) => {
 async function settlePayout(id, action) {
   return withTransaction(async (client) => {
     const { rows } = await client.query(
-      `SELECT a.id, a.worker_id, a.status, a.payout_status, t.pay_cents
+      `SELECT a.id, a.worker_id, a.status, a.payout_status, a.payout_amount, t.pay_cents
        FROM assignments a
        JOIN tasks t ON t.id = a.task_id
        WHERE a.id = $1
@@ -364,7 +365,7 @@ async function settlePayout(id, action) {
       err.status = 409;
       throw err;
     }
-    const pay = dollarsFromCents(a.pay_cents);
+    const pay = Number(a.payout_amount) || dollarsFromCents(a.pay_cents);
     await client.query('SELECT user_id FROM accounts WHERE user_id = $1 FOR UPDATE', [a.worker_id]);
     if (action === 'release') {
       await client.query(
@@ -412,7 +413,7 @@ adminRouter.post('/payouts/:id/void', async (req, res) => {
 
 adminRouter.get('/workers', async (_req, res) => {
   const { rows } = await query(
-    `SELECT u.id, u.email, u.display_name, u.is_active, u.lifetime_completed, u.created_at,
+    `SELECT u.id, u.email, u.display_name, u.is_active, u.lifetime_completed, u.created_at, u.tier,
             ac.balance, ac.frozen, ac.pending,
             (SELECT COUNT(*)::int FROM assignments a
               WHERE a.worker_id = u.id AND a.status = 'submitted') AS submitted
@@ -424,6 +425,7 @@ adminRouter.get('/workers', async (_req, res) => {
   res.json({
     workers: rows.map((r) => ({
       ...r,
+      ...tierInfo(r.tier),
       balance: Number(r.balance),
       frozen: Number(r.frozen),
       pending: Number(r.pending),
@@ -442,6 +444,131 @@ adminRouter.post('/workers/:id/active', async (req, res) => {
     [is_active, u[0].id],
   );
   res.json({ user: rows[0] });
+});
+
+adminRouter.post('/workers/:id/tier', async (req, res) => {
+  const tier = clampTier(req.body?.tier);
+  if (Number(req.body?.tier) !== tier) return res.status(400).json({ error: 'tier 1-4' });
+  const { rows: u } = await query('SELECT id, role FROM users WHERE id = $1', [req.params.id]);
+  if (!u[0]) return res.status(404).json({ error: 'not found' });
+  if (u[0].role !== 'worker') return res.status(400).json({ error: 'workers only' });
+  const { rows } = await query(
+    `UPDATE users SET tier = $1 WHERE id = $2
+     RETURNING id, email, display_name, role, tier`,
+    [tier, u[0].id],
+  );
+  res.json({ user: { ...rows[0], ...tierInfo(rows[0].tier) } });
+});
+
+adminRouter.get('/deposits', async (_req, res) => {
+  const { rows } = await query(
+    `SELECT d.*, u.display_name, u.email
+     FROM deposits d JOIN users u ON u.id = d.user_id
+     ORDER BY CASE d.status WHEN 'PENDING' THEN 0 ELSE 1 END, d.id DESC`,
+  );
+  res.json({ deposits: rows.map((d) => ({ ...d, amount: Number(d.amount) })) });
+});
+
+async function settleDeposit(id, action) {
+  return withTransaction(async (client) => {
+    const { rows } = await client.query('SELECT * FROM deposits WHERE id = $1 FOR UPDATE', [id]);
+    const d = rows[0];
+    if (!d) {
+      const err = new Error('not found');
+      err.status = 404;
+      throw err;
+    }
+    if (d.status !== 'PENDING') {
+      const err = new Error('not pending');
+      err.status = 409;
+      throw err;
+    }
+    const amount = Number(d.amount);
+    if (action === 'approve') {
+      await client.query('SELECT user_id FROM accounts WHERE user_id = $1 FOR UPDATE', [d.user_id]);
+      await client.query(
+        'UPDATE accounts SET balance = balance + $1 WHERE user_id = $2',
+        [amount, d.user_id],
+      );
+      await client.query(
+        `INSERT INTO ledger (user_id, kind, amount, ref_type, ref_id, note)
+         VALUES ($1, 'deposit_credit', $2, 'deposit', $3, 'Deposit approved')`,
+        [d.user_id, amount, d.id],
+      );
+      await client.query(
+        `UPDATE deposits SET status = 'APPROVED', updated_at = NOW() WHERE id = $1`,
+        [d.id],
+      );
+    } else {
+      await client.query(
+        `UPDATE deposits SET status = 'REJECTED', updated_at = NOW() WHERE id = $1`,
+        [d.id],
+      );
+    }
+    const { rows: done } = await client.query('SELECT * FROM deposits WHERE id = $1', [d.id]);
+    return { deposit: { ...done[0], amount: Number(done[0].amount) } };
+  });
+}
+
+adminRouter.post('/deposits/:id/approve', async (req, res) => {
+  try {
+    res.json(await settleDeposit(req.params.id, 'approve'));
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+adminRouter.post('/deposits/:id/reject', async (req, res) => {
+  try {
+    res.json(await settleDeposit(req.params.id, 'reject'));
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+adminRouter.get('/drive-sets', async (_req, res) => {
+  const { rows } = await query(
+    `SELECT ds.*, u.display_name, t.title
+     FROM drive_sets ds
+     JOIN users u ON u.id = ds.user_id
+     JOIN tasks t ON t.id = ds.task_id
+     ORDER BY ds.assigned_at DESC`
+  );
+  res.json({ drive_sets: rows });
+});
+
+adminRouter.post('/drive-sets', async (req, res) => {
+  const user_id = Number(req.body?.user_id);
+  const task_id = Number(req.body?.task_id);
+  const assigned_by = req.user.id;
+  const total_items = Number(req.body?.total_items) || 20;
+
+  if (!user_id || !task_id) {
+    return res.status(400).json({ error: 'user_id and task_id required' });
+  }
+
+  // Verify task exists and is image type
+  const { rows: t } = await query('SELECT type FROM tasks WHERE id = $1', [task_id]);
+  if (!t[0]) return res.status(404).json({ error: 'task not found' });
+  if (t[0].type !== 'image') return res.status(400).json({ error: 'only image tasks supported' });
+
+  // Verify user exists and is worker
+  const { rows: u } = await query('SELECT id, role FROM users WHERE id = $1', [user_id]);
+  if (!u[0]) return res.status(404).json({ error: 'user not found' });
+  if (u[0].role !== 'worker') return res.status(400).json({ error: 'only workers can be assigned' });
+
+  const created = await withTransaction(async (client) => {
+    // Create the drive set
+    const { rows: ds } = await client.query(
+      `INSERT INTO drive_sets (user_id, task_id, assigned_by, total_items, status)
+       VALUES ($1, $2, $3, $4, 'active')
+       RETURNING *`,
+      [user_id, task_id, assigned_by, total_items]
+    );
+    return ds[0];
+  });
+
+  res.status(201).json({ drive_set: created });
 });
 
 adminRouter.post('/uploads', (req, res) => {

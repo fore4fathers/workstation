@@ -1,65 +1,48 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
-
-const HERO =
-  'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1800&q=80';
-const HERO_FALLBACK = 'https://picsum.photos/id/180/1800/1200';
 
 export default function Landing() {
-  const [src, setSrc] = useState(HERO);
-
   return (
-    <div className="landing">
+    <div className="landing tm-landing">
       <header className="landing-bar">
-        <span className="brand">AI Workstation</span>
-        <Link to="/login" className="ghost">Sign in</Link>
+        <img src="/engagesphere-logo.png" alt="EngageSphere" className="landing-logo" />
+        <div className="landing-ctas">
+          <Link to="/sign-in" className="ghost light">Sign in</Link>
+          <Link to="/register" className="primary small">Create account</Link>
+        </div>
       </header>
 
       <section className="landing-hero">
         <div className="landing-copy">
-          <h1>Label training data. Get paid.</h1>
+          <p className="eyebrow">AI training</p>
+          <h1>Train AI. Earn rewards.</h1>
           <p>
-            Image, text, and intent tasks. Pay is listed on the card. After you
-            submit, an admin releases it, then you withdraw.
+            Complete labeling tasks, keep your quality score up, and withdraw when pay is released.
           </p>
           <div className="landing-ctas">
-            <Link className="primary small" to="/login">Sign in</Link>
-            <Link className="ghost" to="/login?register=1">Create account</Link>
+            <Link className="primary small" to="/sign-in">Sign in</Link>
+            <Link className="ghost" to="/register">Create account</Link>
           </div>
         </div>
-        <div className="landing-media">
-          <img
-            src={src}
-            alt="Laptop on a desk"
-            width={1800}
-            height={1200}
-            fetchPriority="high"
-            decoding="async"
-            onError={() => setSrc(HERO_FALLBACK)}
-          />
+        <div className="landing-stats">
+          <div className="dash-kpi"><div><div className="meta">Task types</div><div className="dash-kpi-n">3</div><div className="meta">Image, text, intent</div></div></div>
+          <div className="dash-kpi"><div><div className="meta">Pay</div><div className="dash-kpi-n">Tiered</div><div className="meta">Bronze to Platinum</div></div></div>
+          <div className="dash-kpi"><div><div className="meta">Payout</div><div className="dash-kpi-n">Held</div><div className="meta">Released by admin</div></div></div>
+          <div className="dash-kpi"><div><div className="meta">Support</div><div className="dash-kpi-n">Live</div><div className="meta">Chat and Telegram</div></div></div>
         </div>
       </section>
 
       <section className="landing-steps">
         <h2>How it works</h2>
         <ol>
-          <li>
-            <b>Pick a task</b>
-            <span>Open anything still available.</span>
-          </li>
-          <li>
-            <b>Label the items</b>
-            <span>One screen at a time. Submit when you finish.</span>
-          </li>
-          <li>
-            <b>Withdraw</b>
-            <span>Pay sits as pending until an admin releases it.</span>
-          </li>
+          <li><b>Pick a task</b><span>Choose image, text, or intent work.</span></li>
+          <li><b>Label the items</b><span>One item at a time, then submit.</span></li>
+          <li><b>Withdraw</b><span>Pay stays pending until it is released.</span></li>
         </ol>
       </section>
 
-      <footer className="landing-foot">
-        <p>Demo: john@demo.local / john123 · admin@demo.local / admin123</p>
+      <footer className="tm-foot">
+        <span>© 2026 EngageSphere. All rights reserved.</span>
+        <span>Demo: john@demo.local / john123</span>
       </footer>
     </div>
   );

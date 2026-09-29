@@ -45,10 +45,11 @@ export async function seed({ reset = true } = {}) {
 
   for (const w of workers) {
     const hash = await bcrypt.hash(w.password, 4);
+    const tier = 2;
     const { rows } = await query(
-      `INSERT INTO users (email, password_hash, display_name, role, lifetime_completed)
-       VALUES ($1,$2,$3,'worker',$4) RETURNING id`,
-      [w.email, hash, w.name, w.lifetime],
+      `INSERT INTO users (email, password_hash, display_name, role, lifetime_completed, tier)
+       VALUES ($1,$2,$3,'worker',$4,$5) RETURNING id`,
+      [w.email, hash, w.name, w.lifetime, tier],
     );
     await query(
       'INSERT INTO accounts (user_id, balance, frozen, pending) VALUES ($1,$2,0,0)',

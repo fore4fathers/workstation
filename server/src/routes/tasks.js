@@ -2,25 +2,35 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { publicItem, dollarsFromCents } from '../auth.js';
+import { applyTierPay } from '../tiers.js';
 
 export const tasksRouter = Router();
 tasksRouter.use(requireAuth);
 
 tasksRouter.get('/', async (req, res) => {
+  const type = req.query.type ? String(req.query.type) : null;
+  const params = [req.user.id];
+  let typeSql = '';
+  if (type && ['image', 'text', 'intent'].includes(type)) {
+    params.push(type);
+    typeSql = ` AND t.type = $${params.length}`;
+  }
   const { rows } = await query(
     `SELECT t.id, t.type, t.title, t.description, t.pay_cents, t.est_minutes, t.created_at,
-            a.status AS assignment_status,
-            (SELECT COUNT(*)::int FROM task_items i WHERE i.task_id = t.id) AS item_count
+            a.id AS assignment_id, a.status AS assignment_status, a.submitted_at, a.payout_status, a.payout_amount,
+            (SELECT COUNT(*)::int FROM task_items i WHERE i.task_id = t.id) AS item_count,
+            (SELECT i.payload->>'image_url' FROM task_items i WHERE i.task_id = t.id ORDER BY i.sort_order, i.id LIMIT 1) AS image_url
      FROM tasks t
      LEFT JOIN assignments a ON a.task_id = t.id AND a.worker_id = $1
-     WHERE t.is_published = TRUE
+     WHERE t.is_published = TRUE${typeSql}
      ORDER BY t.id ASC`,
-    [req.user.id],
+    params,
   );
   res.json({
     tasks: rows.map((t) => ({
       ...t,
-      pay_dollars: dollarsFromCents(t.pay_cents),
+      pay_dollars: applyTierPay(dollarsFromCents(t.pay_cents), req.user.tier),
+      base_pay_dollars: dollarsFromCents(t.pay_cents),
     })),
   });
 });
@@ -38,7 +48,11 @@ tasksRouter.get('/:id', async (req, res) => {
     [task.id],
   );
   res.json({
-    task: { ...task, pay_dollars: dollarsFromCents(task.pay_cents) },
+    task: {
+      ...task,
+      pay_dollars: applyTierPay(dollarsFromCents(task.pay_cents), req.user.tier),
+      base_pay_dollars: dollarsFromCents(task.pay_cents),
+    },
     items: items.map((i) => ({ id: i.id, sort_order: i.sort_order, payload: publicItem(i.payload) })),
   });
 });

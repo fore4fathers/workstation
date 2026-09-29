@@ -7,7 +7,9 @@ const links = [
   { to: '/tasks', label: 'Tasks' },
   { to: '/payouts', label: 'Payouts' },
   { to: '/wallet', label: 'Withdrawals' },
+  { to: '/deposits', label: 'Deposits' },
   { to: '/workers', label: 'Workers' },
+  { to: '/drive-sets', label: 'Drive Sets' },
   { to: '/inbox', label: 'Inbox' },
   { to: '/profile', label: 'Profile' },
 ];
@@ -19,7 +21,10 @@ export default function AdminLayout({ session }) {
   return (
     <div className={`admin-shell${compact ? ' is-compact' : ''}`}>
       <header className="site-nav admin-nav-bar">
-        <NavLink to="/" end className="brand">AI Workstation</NavLink>
+        <NavLink to="/" end className="brand es-brand">
+          <img src="/engagesphere-logo.png" alt="" />
+          EngageSphere
+        </NavLink>
         <nav className="site-nav-links admin-links" aria-label="Admin">
           {links.map((l) => (
             <NavLink key={l.to} to={l.to} end={l.end} className={({ isActive }) => (isActive ? 'active' : '')}>

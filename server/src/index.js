@@ -12,6 +12,9 @@ import { submissionsRouter } from './routes/submissions.js';
 import { walletRouter, leadersRouter } from './routes/wallet.js';
 import { chatRouter } from './routes/chat.js';
 import { adminRouter } from './routes/admin.js';
+import { hubRouter } from './routes/hub.js';
+import { checkinRouter } from './routes/checkin.js';
+import { driveSetsRouter } from './routes/drive-sets.js';
 import { migrate } from './sql/migrate.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -36,8 +39,11 @@ app.use('/api/tasks', tasksRouter);
 app.use('/api/tasks', submissionsRouter);
 app.use('/api/wallet', walletRouter);
 app.use('/api/leaders', leadersRouter);
+app.use('/api/hub', hubRouter);
+app.use('/api/checkin', checkinRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/worker/drive-sets', driveSetsRouter);
 
 if (hasDist) {
   app.use(express.static(distDir));

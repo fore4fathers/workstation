@@ -10,6 +10,7 @@ export default function Login({ onLogin }) {
   const [mode, setMode] = useState(params.get('register') ? 'register' : 'login');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -61,15 +62,26 @@ export default function Login({ onLogin }) {
           required
         />
         <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          defaultValue={mode === 'login' ? 'john123' : ''}
-          autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-          minLength={mode === 'register' ? 8 : undefined}
-          required
-        />
+        <div className="password-field">
+          <input
+            id="password"
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            defaultValue={mode === 'login' ? 'john123' : ''}
+            autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+            minLength={mode === 'register' ? 8 : undefined}
+            required
+          />
+          <button
+            type="button"
+            className="password-toggle"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-pressed={showPassword}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? 'Hide' : 'Show'}
+          </button>
+        </div>
         {error ? <p className="error">{error}</p> : null}
         <button className="primary" type="submit" disabled={busy}>
           {busy ? <Spinner size={18} /> : null}

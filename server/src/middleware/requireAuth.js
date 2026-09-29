@@ -10,7 +10,7 @@ export async function requireAuth(req, res, next) {
     if (!token) return res.status(401).json({ error: 'unauthorized' });
     const payload = verifyToken(token);
     const { rows } = await query(
-      `SELECT id, email, display_name, role, avatar_url, is_active, lifetime_completed
+      `SELECT id, email, display_name, role, avatar_url, is_active, lifetime_completed, tier, phone, created_at, password_hash
        FROM users WHERE id = $1`,
       [payload.id],
     );

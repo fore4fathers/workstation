@@ -4,5 +4,5 @@ import { disconnectSocket } from './socket.js';
 export function logout(navigate) {
   setToken(null);
   disconnectSocket();
-  navigate('/login');
+  navigate('/sign-in');
 }

@@ -16,6 +16,19 @@ export default function AdminWorkers() {
     load().catch((err) => setError(err.message));
   }, []);
 
+  async function setTier(id, tier) {
+    setBusy(id);
+    setError('');
+    try {
+      await api(`/api/admin/workers/${id}/tier`, { method: 'POST', body: { tier } });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function setActive(id, is_active) {
     setBusy(id);
     setError('');
@@ -41,6 +54,7 @@ export default function AdminWorkers() {
               <th>Available</th>
               <th>Pending</th>
               <th>Submitted</th>
+              <th>Tier</th>
               <th>Status</th>
               <th />
             </tr>
@@ -52,6 +66,18 @@ export default function AdminWorkers() {
                 <td className="money">{money(w.balance)}</td>
                 <td className="money">{money(w.pending)}</td>
                 <td>{w.submitted}</td>
+                <td>
+                  <select
+                    value={w.tier}
+                    disabled={busy === w.id}
+                    onChange={(e) => setTier(w.id, Number(e.target.value))}
+                  >
+                    <option value={1}>Basic</option>
+                    <option value={2}>Bronze</option>
+                    <option value={3}>Gold</option>
+                    <option value={4}>Platinum</option>
+                  </select>
+                </td>
                 <td>{w.is_active ? 'Active' : 'Disabled'}</td>
                 <td>
                   <button

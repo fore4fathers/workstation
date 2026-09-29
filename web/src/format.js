@@ -71,5 +71,7 @@ export function ledgerLabel(kind) {
     withdrawal_release: 'Withdraw rejected',
     withdrawal_debit: 'Withdrawn',
     admin_adjust: 'Adjustment',
+    deposit_credit: 'Deposit',
+    checkin_bonus: 'Check-in',
   }[kind] || kind;
 }

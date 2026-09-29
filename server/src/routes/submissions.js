@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { dollarsFromCents } from '../auth.js';
+import { applyTierPay } from '../tiers.js';
+import { performDailyCheckin } from '../checkin.js';
 
 export const submissionsRouter = Router();
 submissionsRouter.use(requireAuth);
@@ -81,13 +83,14 @@ submissionsRouter.post('/:id/submit', async (req, res) => {
         saved.push(rows[0]);
       }
 
-      const pay = dollarsFromCents(task.pay_cents);
+      const { rows: urows } = await client.query('SELECT tier FROM users WHERE id = $1', [req.user.id]);
+      const pay = applyTierPay(dollarsFromCents(task.pay_cents), urows[0]?.tier);
       const payoutStatus = pay > 0 ? 'pending' : 'released';
       await client.query(
         `UPDATE assignments
-         SET status = 'submitted', submitted_at = NOW(), payout_status = $2
+         SET status = 'submitted', submitted_at = NOW(), payout_status = $2, payout_amount = $3
          WHERE id = $1`,
-        [assignment.id, payoutStatus],
+        [assignment.id, payoutStatus, pay],
       );
 
       if (pay > 0) {
@@ -107,6 +110,13 @@ submissionsRouter.post('/:id/submit', async (req, res) => {
         [req.user.id],
       );
 
+      let checkin = { success: false };
+      try {
+        checkin = await performDailyCheckin(req.user.id, client, { award: false });
+      } catch {
+        checkin = { success: false };
+      }
+
       const { rows: acct } = await client.query(
         'SELECT balance, frozen, pending FROM accounts WHERE user_id = $1',
         [req.user.id],
@@ -116,6 +126,7 @@ submissionsRouter.post('/:id/submit', async (req, res) => {
         pay_dollars: pay,
         payout_status: payoutStatus,
         submissions: saved,
+        checkin,
         account: {
           balance: Number(acct[0].balance),
           frozen: Number(acct[0].frozen),

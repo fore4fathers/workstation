@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.js';
 import { getSocket } from '../../socket.js';
+import { mergeMessage } from '../../chat.js';
 
 export default function AdminInbox() {
   const [conversations, setConversations] = useState([]);
@@ -41,10 +42,9 @@ export default function AdminInbox() {
           ? { ...c, last_message: payload.message.content }
           : c
       )));
-      setMessages((prev) => {
-        if (payload.message?.id && prev.some((m) => m.id === payload.message.id)) return prev;
-        return currentRef.current === payload.conversation_id ? [...prev, payload.message] : prev;
-      });
+      if (currentRef.current === payload.conversation_id) {
+        setMessages((prev) => mergeMessage(prev, payload.message));
+      }
     };
     if (socket) socket.on('message:new', onNew);
     return () => {
@@ -64,7 +64,7 @@ export default function AdminInbox() {
     setText('');
     try {
       const sent = await api(`/api/admin/chat/${current}`, { method: 'POST', body: { content } });
-      setMessages((prev) => [...prev, { ...sent.message, role: 'admin' }]);
+      setMessages((prev) => mergeMessage(prev, { ...sent.message, role: 'admin' }));
       setConversations((prev) => prev.map((c) => (
         c.id === current ? { ...c, last_message: content } : c
       )));
