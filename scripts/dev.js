@@ -28,5 +28,5 @@ function stop(code = 0) {
 process.on('SIGINT', () => stop(0));
 process.on('SIGTERM', () => stop(0));
 
-run('node', ['server/src/index.js']);
+run('node', ['--watch', 'server/src/index.js']);
 run('npm', ['run', 'dev', '-w', 'web']);
