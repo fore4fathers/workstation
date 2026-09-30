@@ -87,6 +87,117 @@ export async function migrate() {
   await query(`ALTER TABLE deposits ADD COLUMN IF NOT EXISTS details JSONB`);
 
   await query(`
+    CREATE TABLE IF NOT EXISTS drive_sets (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      assigned_by INTEGER REFERENCES users(id),
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','completed','cancelled')),
+      assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ,
+      total_items INTEGER NOT NULL DEFAULT 20,
+      correct_count INTEGER NOT NULL DEFAULT 0,
+      total_commission INTEGER NOT NULL DEFAULT 0,
+      commission_cents INTEGER NOT NULL DEFAULT 50,
+      alternative_commission_cents INTEGER NOT NULL DEFAULT 25,
+      foreign_commission_cents INTEGER NOT NULL DEFAULT 50
+    )
+  `);
+  await query(`ALTER TABLE drive_sets ADD COLUMN IF NOT EXISTS commission_cents INTEGER NOT NULL DEFAULT 50`);
+  await query(`ALTER TABLE drive_sets ADD COLUMN IF NOT EXISTS alternative_commission_cents INTEGER NOT NULL DEFAULT 25`);
+  await query(`ALTER TABLE drive_sets ADD COLUMN IF NOT EXISTS foreign_commission_cents INTEGER NOT NULL DEFAULT 50`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS image_commissions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      drive_set_id INTEGER REFERENCES drive_sets(id) ON DELETE CASCADE,
+      image_index INTEGER NOT NULL,
+      selected_label TEXT NOT NULL,
+      is_correct BOOLEAN NOT NULL DEFAULT FALSE,
+      commission_cents INTEGER NOT NULL DEFAULT 0,
+      answered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`ALTER TABLE image_commissions ADD COLUMN IF NOT EXISTS drive_set_id INTEGER REFERENCES drive_sets(id) ON DELETE CASCADE`);
+  await query(`ALTER TABLE image_commissions ADD COLUMN IF NOT EXISTS answered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await query(`ALTER TABLE image_commissions ADD COLUMN IF NOT EXISTS response_type TEXT`);
+  await query(`UPDATE image_commissions SET response_type = CASE WHEN is_correct THEN 'best_match' ELSE 'alternative_match' END WHERE response_type IS NULL`);
+  await query(`ALTER TABLE image_commissions ALTER COLUMN response_type SET DEFAULT 'best_match'`);
+  await query(`ALTER TABLE image_commissions ALTER COLUMN response_type SET NOT NULL`);
+  await query(`ALTER TABLE image_commissions DROP CONSTRAINT IF EXISTS image_commissions_response_type_check`);
+  await query(`ALTER TABLE image_commissions ADD CONSTRAINT image_commissions_response_type_check CHECK (response_type IN ('best_match','alternative_match','foreign_language'))`);
+  const { rowCount: alternativeRewardBackfill } = await query(
+    `INSERT INTO schema_flags (key) VALUES ('drive_set_alternative_reward_backfill_v1') ON CONFLICT DO NOTHING`,
+  );
+  if (alternativeRewardBackfill) {
+    try {
+      await query(`
+        WITH adjustments AS MATERIALIZED (
+          SELECT ic.user_id,
+                 SUM(GREATEST(ds.alternative_commission_cents - ic.commission_cents, 0))::numeric AS cents
+          FROM image_commissions ic
+          JOIN drive_sets ds ON ds.id = ic.drive_set_id
+          WHERE ic.response_type = 'alternative_match' AND NOT ic.is_correct
+          GROUP BY ic.user_id
+        ), updated AS (
+          UPDATE image_commissions ic
+          SET commission_cents = GREATEST(ic.commission_cents, ds.alternative_commission_cents)
+          FROM drive_sets ds
+          WHERE ds.id = ic.drive_set_id
+            AND ic.response_type = 'alternative_match'
+            AND NOT ic.is_correct
+          RETURNING ic.user_id
+        )
+        UPDATE accounts a
+        SET balance = a.balance + adjustments.cents / 100
+        FROM adjustments
+        WHERE a.user_id = adjustments.user_id
+          AND EXISTS (SELECT 1 FROM updated WHERE updated.user_id = a.user_id)
+      `);
+    } catch (error) {
+      await query(`DELETE FROM schema_flags WHERE key = 'drive_set_alternative_reward_backfill_v1'`);
+      throw error;
+    }
+  }
+  const { rowCount: foreignRewardBackfill } = await query(
+    `INSERT INTO schema_flags (key) VALUES ('drive_set_foreign_reward_backfill_v1') ON CONFLICT DO NOTHING`,
+  );
+  if (foreignRewardBackfill) {
+    try {
+      await query(`
+        WITH adjustments AS MATERIALIZED (
+          SELECT ic.user_id,
+                 SUM(GREATEST(ds.commission_cents - ic.commission_cents, 0))::numeric AS cents
+          FROM image_commissions ic
+          JOIN drive_sets ds ON ds.id = ic.drive_set_id
+          WHERE ic.response_type = 'foreign_language'
+          GROUP BY ic.user_id
+        ), updated AS (
+          UPDATE image_commissions ic
+          SET commission_cents = GREATEST(ic.commission_cents, ds.commission_cents)
+          FROM drive_sets ds
+          WHERE ds.id = ic.drive_set_id
+            AND ic.response_type = 'foreign_language'
+          RETURNING ic.user_id
+        )
+        UPDATE accounts a
+        SET balance = a.balance + adjustments.cents / 100
+        FROM adjustments
+        WHERE a.user_id = adjustments.user_id
+          AND EXISTS (SELECT 1 FROM updated WHERE updated.user_id = a.user_id)
+      `);
+      await query(`UPDATE drive_sets SET foreign_commission_cents = commission_cents WHERE foreign_commission_cents <> commission_cents`);
+    } catch (error) {
+      await query(`DELETE FROM schema_flags WHERE key = 'drive_set_foreign_reward_backfill_v1'`);
+      throw error;
+    }
+  }
+  await query(`ALTER TABLE image_commissions DROP CONSTRAINT IF EXISTS image_commissions_user_id_task_id_image_index_key`);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_image_commissions_set_image ON image_commissions(drive_set_id, image_index)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_drive_sets_user ON drive_sets(user_id, status)`);
+
+  await query(`
     INSERT INTO platform_deposit_addresses (cryptocurrency, network, address) VALUES
       ('USDT', 'TRC20', 'TDemoPlatformReceive111111111111'),
       ('USDT', 'ERC20', '0xDEE0P1A7F0RMD3M0S3ND0NLY000001'),

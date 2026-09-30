@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { api } from '../api.js';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { logout } from '../session.js';
 
 const links = [
   { to: '/', label: 'Dashboard', end: true, icon: 'home' },
-  { to: '/tasks', label: 'Available Tasks', icon: 'list' },
-  { to: '/tasks', label: 'My Tasks', icon: 'clip', mine: true },
-  { to: '/drive-sets', label: 'Drive Sets', icon: 'grid' },
+  { to: '/available-tasks', label: 'Available Tasks', end: true, icon: 'list' },
+  { to: '/drive-sets', label: 'Label Sets', icon: 'grid' },
   { to: '/profile', label: 'Training', icon: 'cap' },
   { to: '/wallet', label: 'Earnings', icon: 'card' },
   { to: '/account', label: 'Profile', icon: 'user' },
@@ -28,24 +26,9 @@ function Glyph({ name }) {
 
 export default function WorkerLayout({ session }) {
   const navigate = useNavigate();
-  const loc = useLocation();
   const [open, setOpen] = useState(false);
   const name = session?.user?.display_name || 'Trainer';
   const tier = session?.user?.tier_name || 'Bronze';
-  const onWork = /^\/tasks\/\d+/.test(loc.pathname);
-
-  async function openMyTasks() {
-    setOpen(false);
-    try {
-      const data = await api('/api/tasks');
-      const list = data.tasks || [];
-      const current = list.find((t) => t.assignment_status === 'in_progress')
-        || list.find((t) => t.assignment_status !== 'submitted');
-      navigate(current ? `/tasks/${current.id}` : '/tasks');
-    } catch {
-      navigate('/tasks');
-    }
-  }
 
   return (
     <div className="tm-shell">
@@ -59,23 +42,16 @@ export default function WorkerLayout({ session }) {
         </div>
         <nav>
           {links.map((l) => (
-            l.mine ? (
-              <button key={l.label} type="button" className={onWork ? 'active' : ''} onClick={openMyTasks}>
-                <Glyph name={l.icon} />
-                {l.label}
-              </button>
-            ) : (
-              <NavLink
-                key={l.label}
-                to={l.to}
-                end={l.end || l.to === '/tasks'}
-                className={({ isActive }) => (isActive ? 'active' : '')}
-                onClick={() => setOpen(false)}
-              >
-                <Glyph name={l.icon} />
-                {l.label}
-              </NavLink>
-            )
+            <NavLink
+              key={l.label}
+              to={l.to}
+              end={l.end || l.to === '/tasks'}
+              className={({ isActive }) => (isActive ? 'active' : '')}
+              onClick={() => setOpen(false)}
+            >
+              <Glyph name={l.icon} />
+              {l.label}
+            </NavLink>
           ))}
         </nav>
         <div className="tm-promo">

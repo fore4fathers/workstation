@@ -105,6 +105,7 @@ export default function App() {
           <Route index element={<WorkerHome session={session} />} />
           <Route path="tasks" element={<WorkerTasks session={session} />} />
           <Route path="tasks/:id" element={<TaskWork />} />
+          <Route path="available-tasks" element={<DriveSets />} />
           <Route path="leaders" element={<Leaders />} />
           <Route path="wallet" element={<Wallet />} />
           <Route path="wallet/deposit" element={<Deposit />} />
@@ -120,5 +121,4 @@ export default function App() {
     </Routes>
   );
 }
-
 

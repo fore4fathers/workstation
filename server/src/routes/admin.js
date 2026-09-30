@@ -9,6 +9,8 @@ import { dollarsFromCents } from '../auth.js';
 import { clampTier, tierInfo } from '../tiers.js';
 import { config } from '../config.js';
 
+const CIVITAI_PROMPT_FILTER = `nsfw_level = 'None' AND NULLIF(BTRIM(prompt), '') IS NOT NULL`;
+
 const IMAGE_EXT = {
   'image/jpeg': '.jpg',
   'image/jpg': '.jpg',
@@ -78,12 +80,22 @@ adminRouter.get('/stats', async (_req, res) => {
 adminRouter.get('/tasks', async (_req, res) => {
   const { rows } = await query(
     `SELECT t.*,
-            (SELECT COUNT(*)::int FROM task_items i WHERE i.task_id = t.id) AS item_count,
+            CASE WHEN t.type = 'image'
+                      AND EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id)
+                      AND NOT EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id
+                                      AND COALESCE(di.payload->>'image_url', '') NOT ILIKE '%picsum.photos%')
+                 THEN 'Civitai Image Caption Training' ELSE t.title END AS training_title,
+            CASE WHEN t.type = 'image'
+                      AND EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id)
+                      AND NOT EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id
+                                      AND COALESCE(di.payload->>'image_url', '') NOT ILIKE '%picsum.photos%')
+                 THEN (SELECT COUNT(*)::int FROM images ci WHERE ${CIVITAI_PROMPT_FILTER})
+                 ELSE (SELECT COUNT(*)::int FROM task_items i WHERE i.task_id = t.id) END AS item_count,
             (SELECT COUNT(*)::int FROM assignments a WHERE a.task_id = t.id AND a.status = 'submitted') AS submissions
      FROM tasks t ORDER BY t.id DESC`,
   );
   res.json({
-    tasks: rows.map((t) => ({ ...t, pay_dollars: dollarsFromCents(t.pay_cents) })),
+    tasks: rows.map((t) => ({ ...t, title: t.training_title, pay_dollars: dollarsFromCents(t.pay_cents) })),
   });
 });
 
@@ -528,13 +540,27 @@ adminRouter.post('/deposits/:id/reject', async (req, res) => {
 
 adminRouter.get('/drive-sets', async (_req, res) => {
   const { rows } = await query(
-    `SELECT ds.*, u.display_name, t.title
+    `SELECT ds.*, u.display_name,
+            CASE WHEN EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id)
+                      AND NOT EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id
+                                      AND COALESCE(di.payload->>'image_url', '') NOT ILIKE '%picsum.photos%')
+                 THEN 'Civitai Image Caption Training' ELSE t.title END AS title,
+            COUNT(ic.id)::int AS answered_count,
+            COUNT(ic.id) FILTER (WHERE ic.response_type = 'best_match')::int AS best_match_count,
+            COUNT(ic.id) FILTER (WHERE ic.response_type = 'alternative_match')::int AS alternative_match_count,
+            COUNT(ic.id) FILTER (WHERE ic.response_type = 'foreign_language')::int AS foreign_language_count,
+            COALESCE(SUM(ic.commission_cents), 0)::int AS total_commission
      FROM drive_sets ds
      JOIN users u ON u.id = ds.user_id
      JOIN tasks t ON t.id = ds.task_id
+     LEFT JOIN image_commissions ic ON ic.drive_set_id = ds.id
+     GROUP BY ds.id, u.id, t.id
      ORDER BY ds.assigned_at DESC`
   );
-  res.json({ drive_sets: rows });
+  res.json({ drive_sets: rows.map((set) => ({
+    ...set,
+    foreign_commission_cents: Number(set.commission_cents ?? 50),
+  })) });
 });
 
 adminRouter.post('/drive-sets', async (req, res) => {
@@ -542,15 +568,35 @@ adminRouter.post('/drive-sets', async (req, res) => {
   const task_id = Number(req.body?.task_id);
   const assigned_by = req.user.id;
   const total_items = Number(req.body?.total_items) || 20;
+  const commission_cents = Number(req.body?.commission_cents ?? 50);
+  const alternative_commission_cents = Number(req.body?.alternative_commission_cents ?? 25);
+  const foreign_commission_cents = Number(req.body?.foreign_commission_cents ?? commission_cents);
 
-  if (!user_id || !task_id) {
-    return res.status(400).json({ error: 'user_id and task_id required' });
+  if (!user_id || !task_id || !Number.isInteger(total_items) || total_items < 1
+      || !Number.isInteger(commission_cents) || commission_cents < 0
+      || !Number.isInteger(alternative_commission_cents) || alternative_commission_cents < 0
+      || !Number.isInteger(foreign_commission_cents) || foreign_commission_cents < 0
+      || alternative_commission_cents > commission_cents || foreign_commission_cents !== commission_cents) {
+    return res.status(400).json({ error: 'reward rates must be non-negative, with the closest-match reward highest' });
   }
 
   // Verify task exists and is image type
   const { rows: t } = await query('SELECT type FROM tasks WHERE id = $1', [task_id]);
   if (!t[0]) return res.status(404).json({ error: 'task not found' });
   if (t[0].type !== 'image') return res.status(400).json({ error: 'only image tasks supported' });
+  const { rows: demoCheck } = await query(
+    `SELECT COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE payload->>'image_url' ILIKE '%picsum.photos%')::int AS demo_count
+     FROM task_items WHERE task_id = $1`,
+    [task_id],
+  );
+  const isCivitaiBacked = demoCheck[0].total > 0 && demoCheck[0].total === demoCheck[0].demo_count;
+  const { rows: itemCount } = isCivitaiBacked
+    ? await query(`SELECT COUNT(*)::int AS count FROM images WHERE ${CIVITAI_PROMPT_FILTER}`)
+    : await query('SELECT COUNT(*)::int AS count FROM task_items WHERE task_id = $1', [task_id]);
+  if (itemCount[0].count < total_items) {
+    return res.status(400).json({ error: `task has only ${itemCount[0].count} usable image items` });
+  }
 
   // Verify user exists and is worker
   const { rows: u } = await query('SELECT id, role FROM users WHERE id = $1', [user_id]);
@@ -560,15 +606,39 @@ adminRouter.post('/drive-sets', async (req, res) => {
   const created = await withTransaction(async (client) => {
     // Create the drive set
     const { rows: ds } = await client.query(
-      `INSERT INTO drive_sets (user_id, task_id, assigned_by, total_items, status)
-       VALUES ($1, $2, $3, $4, 'active')
+      `INSERT INTO drive_sets
+         (user_id, task_id, assigned_by, total_items, commission_cents,
+          alternative_commission_cents, foreign_commission_cents, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
        RETURNING *`,
-      [user_id, task_id, assigned_by, total_items]
+      [user_id, task_id, assigned_by, total_items, commission_cents,
+        alternative_commission_cents, foreign_commission_cents]
     );
     return ds[0];
   });
 
   res.status(201).json({ drive_set: created });
+});
+
+adminRouter.delete('/drive-sets/:id', async (req, res) => {
+  const result = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      'SELECT id, status FROM drive_sets WHERE id = $1 FOR UPDATE',
+      [req.params.id],
+    );
+    const set = rows[0];
+    if (!set) return { status: 404, body: { error: 'drive set not found' } };
+    if (set.status === 'cancelled') return { status: 200, body: { cancelled: true } };
+    if (set.status !== 'active') {
+      return { status: 409, body: { error: 'completed drive sets cannot be unassigned' } };
+    }
+    await client.query(
+      `UPDATE drive_sets SET status = 'cancelled' WHERE id = $1`,
+      [set.id],
+    );
+    return { status: 200, body: { cancelled: true } };
+  });
+  res.status(result.status).json(result.body);
 });
 
 adminRouter.post('/uploads', (req, res) => {

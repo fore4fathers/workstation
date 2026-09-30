@@ -10,4 +10,5 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || 'dev-ai-workstation-secret-change-me',
   port: Number(process.env.PORT || 4101),
   uploadDir: process.env.UPLOAD_DIR || path.join(root, 'uploads'),
+  civitaiImageDir: path.join(root, 'civitai_collector', 'data', 'images'),
 };

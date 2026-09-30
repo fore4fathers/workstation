@@ -21,7 +21,7 @@ export default function AdminHome() {
     ? [
         { n: stats.workers, l: 'Workers', to: '/workers' },
         { n: stats.open_tasks, l: 'Open tasks', to: '/tasks' },
-        { n: stats.active_drive_sets || 0, l: 'Drive Sets', to: '/drive-sets' },
+        { n: stats.active_drive_sets || 0, l: 'Label Sets', to: '/drive-sets' },
         { n: stats.pending_payouts, l: 'Pending payouts', to: '/payouts' },
         { n: stats.pending_withdrawals, l: 'Withdrawals', to: '/wallet' },
         { n: stats.unread_chats, l: 'Unread chats', to: '/inbox' },

@@ -5,6 +5,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { config } from './config.js';
+import { query } from './db.js';
 import { setupSocket } from './socket.js';
 import { authRouter, meRouter } from './routes/auth.js';
 import { tasksRouter } from './routes/tasks.js';
@@ -31,6 +32,33 @@ app.use('/uploads', express.static(config.uploadDir));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'ai-workstation' });
+});
+
+app.get('/api/civitai/images/:id', async (req, res) => {
+  const { rows } = await query(
+    'SELECT source_url, local_path, downloaded FROM images WHERE civitai_id = $1',
+    [req.params.id],
+  );
+  const image = rows[0];
+  if (!image) return res.status(404).json({ error: 'image not found' });
+
+  const localImage = image.local_path
+    ? path.join(config.civitaiImageDir, path.basename(image.local_path))
+    : null;
+  if (image.downloaded && localImage && fs.existsSync(localImage)) {
+    return res.sendFile(localImage);
+  }
+
+  try {
+    const source = new URL(image.source_url);
+    if (source.protocol !== 'https:'
+        || !(source.hostname === 'civitai.com' || source.hostname.endsWith('.civitai.com'))) {
+      return res.status(404).json({ error: 'image source unavailable' });
+    }
+    return res.redirect(302, source.href);
+  } catch {
+    return res.status(404).json({ error: 'image source unavailable' });
+  }
 });
 
 app.use('/api/auth', authRouter);

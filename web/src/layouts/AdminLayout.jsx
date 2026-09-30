@@ -9,7 +9,7 @@ const links = [
   { to: '/wallet', label: 'Withdrawals' },
   { to: '/deposits', label: 'Deposits' },
   { to: '/workers', label: 'Workers' },
-  { to: '/drive-sets', label: 'Drive Sets' },
+  { to: '/drive-sets', label: 'Label Sets' },
   { to: '/inbox', label: 'Inbox' },
   { to: '/profile', label: 'Profile' },
 ];

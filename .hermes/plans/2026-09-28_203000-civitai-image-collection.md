@@ -535,3 +535,9 @@ python main.py
 # Execution Handoff
 
 Plan complete and saved. Ready to execute using subagent-driven-development — I'll dispatch a fresh subagent per task with two-stage review (spec compliance then code quality). Shall I proceed?
+
+## Trainer connection (2026-09-29)
+
+The collector has been implemented in `civitai_collector/`, and a read-only check of the configured app database confirmed 101 rows in `images`. Ten rows have downloaded local files; all 101 have source URLs. The seeded image task still had only five `task_items`, all pointing to Picsum demo images, so the Civitai table was not connected to the worker's Drive Sets trainer.
+
+Drive Sets assigned to that seeded demo image task now draw from the Civitai `images` table instead. The trainer uses the stored generation prompt as the caption match, serves downloaded files locally, and redirects other images to their stored Civitai source URL. Records without a prompt or with an NSFW level other than `None` are excluded. The database reported prompt metadata on 88 images; the usable pool is computed from those filters at request time.
