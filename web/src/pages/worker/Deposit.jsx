@@ -18,6 +18,20 @@ const NETWORKS = {
   crypto: { USDT: ['TRC20', 'ERC20', 'BEP20'], BTC: ['BTC'] },
 };
 
+function fileDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Could not read the selected image.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function hideAddress(address) {
+  if (!address || address.length < 14) return '••••••••••••';
+  return `${address.slice(0, 6)}${'•'.repeat(Math.min(address.length - 12, 24))}${address.slice(-6)}`;
+}
+
 export default function Deposit() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -28,30 +42,61 @@ export default function Deposit() {
   const [txRef, setTxRef] = useState('');
   const [notes, setNotes] = useState('');
   const [extra, setExtra] = useState('');
-  const [payIns, setPayIns] = useState([]);
+  const [workerDepositWallet, setWorkerDepositWallet] = useState(null);
+  const [showDepositAddress, setShowDepositAddress] = useState(false);
+  const [proofFile, setProofFile] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api('/api/wallet/pay-in-addresses').then((d) => setPayIns(d.addresses || [])).catch(() => {});
+    api('/api/wallet').then((d) => setWorkerDepositWallet({
+      address: d.account?.deposit_address || '',
+      cryptocurrency: d.account?.deposit_cryptocurrency || '',
+      network: d.account?.deposit_network || '',
+    })).catch(() => {});
   }, []);
-
-  const payIn = payIns.find((a) => (
-    method === 'crypto'
-      ? a.cryptocurrency === coin && a.network === network
-      : a.cryptocurrency === 'USDT' && a.network === network
-  ));
+  const depositAddress = workerDepositWallet?.address || '';
+  const needsProof = method === 'crypto' || method === 'instant';
+  const requestedCoin = method === 'instant' ? 'USDT' : coin;
+  const addressMatches = Boolean(depositAddress
+    && workerDepositWallet?.cryptocurrency === requestedCoin
+    && workerDepositWallet?.network === network);
 
   function canNext() {
     if (step === 0) return Boolean(method);
-    if (step === 1) return Number(amount) >= 10;
+    if (step === 1) return Number(amount) >= 10
+      && (!needsProof || (Boolean(proofFile) && addressMatches));
     return true;
+  }
+
+  function chooseProof(file) {
+    setError('');
+    if (!file) {
+      setProofFile(null);
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+      setError('Choose a JPEG, PNG, GIF, or WebP image for the transfer proof.');
+      setProofFile(null);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('The image must be 5 MB or smaller.');
+      setProofFile(null);
+      return;
+    }
+    setProofFile(file);
   }
 
   async function submit() {
     setError('');
     setBusy(true);
     try {
+      const proof = proofFile ? {
+        name: proofFile.name,
+        mime: proofFile.type,
+        data: await fileDataUrl(proofFile),
+      } : null;
       await api('/api/wallet/deposit', {
         method: 'POST',
         body: {
@@ -59,7 +104,8 @@ export default function Deposit() {
           method,
           tx_ref: txRef || null,
           notes: notes || null,
-          details: { network, coin, extra },
+          details: { network, coin, extra, deposit_address: depositAddress || null },
+          proof_image: proof,
         },
       });
       navigate('/wallet');
@@ -77,7 +123,7 @@ export default function Deposit() {
         <h1>Cash in</h1>
         <span className="meta">{step + 1}/3</span>
       </div>
-      <div className="page">
+      <div className="page deposit-page">
         <div className="wiz-progress"><span style={{ width: `${((step + 1) / 3) * 100}%` }} /></div>
         {step === 0 && (
           <>
@@ -89,7 +135,15 @@ export default function Deposit() {
                   key={m.id}
                   type="button"
                   className={`wiz-option${method === m.id ? ' on' : ''}`}
-                  onClick={() => setMethod(m.id)}
+                  onClick={() => {
+                    setMethod(m.id);
+                    setProofFile(null);
+                    setShowDepositAddress(false);
+                    if (m.id === 'instant') {
+                      setCoin('USDT');
+                      if (!NETWORKS.instant.includes(network)) setNetwork('TRC20');
+                    }
+                  }}
                 >
                   <b>{m.label}</b>
                   <span className="meta">{m.desc}</span>
@@ -138,14 +192,29 @@ export default function Deposit() {
                     <option key={n} value={n}>{n}</option>
                   ))}
                 </select>
-                {payIn ? (
+                {addressMatches ? (
                   <div className="card" style={{ marginTop: 12 }}>
-                    <div className="meta">Send to</div>
-                    <p className="payin-addr">{payIn.address}</p>
+                    <div className="deposit-address-heading">
+                      <div className="meta">Send to this address</div>
+                      <button type="button" className="text-btn" aria-pressed={showDepositAddress}
+                        onClick={() => setShowDepositAddress((value) => !value)}>
+                        {showDepositAddress ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    <p className="payin-addr">{showDepositAddress ? depositAddress : hideAddress(depositAddress)}</p>
                   </div>
-                ) : null}
-                <label htmlFor="tx">Tx hash / proof</label>
+                ) : <p className="meta deposit-address-missing">
+                  {depositAddress
+                    ? `Your assigned address is for ${workerDepositWallet.cryptocurrency} · ${workerDepositWallet.network}. Choose that network or contact support.`
+                    : 'No deposit address is assigned to your account yet. Contact support before sending funds.'}
+                </p>}
+                <label htmlFor="tx">Transaction hash</label>
                 <input id="tx" value={txRef} onChange={(e) => setTxRef(e.target.value)} />
+                <label htmlFor="deposit-proof">Transfer screenshot</label>
+                <input id="deposit-proof" type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(e) => chooseProof(e.target.files?.[0])}
+                  aria-describedby="deposit-proof-hint" required={needsProof} />
+                <p id="deposit-proof-hint" className="meta">Attach an image of the completed transfer (up to 5 MB).</p>
+                {proofFile ? <p className="meta">Selected: {proofFile.name}</p> : null}
               </>
             )}
             <label htmlFor="notes">Notes</label>
@@ -160,6 +229,7 @@ export default function Deposit() {
               {network && (method === 'crypto' || method === 'instant') ? <p className="meta">{coin} · {network}</p> : null}
               {txRef ? <p className="meta">{txRef}</p> : null}
               {extra ? <p className="meta">{extra}</p> : null}
+              {proofFile ? <p className="meta">Transfer proof attached: {proofFile.name}</p> : null}
               <p className="meta">Pending until an admin approves.</p>
             </div>
           </>

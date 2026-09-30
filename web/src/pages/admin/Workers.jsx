@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
 import { money } from '../../format.js';
 
@@ -6,10 +7,18 @@ export default function AdminWorkers() {
   const [workers, setWorkers] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(null);
+  const [addressDrafts, setAddressDrafts] = useState({});
 
   async function load() {
     const data = await api('/api/admin/workers');
     setWorkers(data.workers || []);
+    setAddressDrafts((current) => Object.fromEntries((data.workers || []).map((worker) => [
+      worker.id,
+      current[worker.id] ?? {
+        address: worker.deposit_address || '',
+        pair: `${worker.deposit_cryptocurrency || 'USDT'}:${worker.deposit_network || 'TRC20'}`,
+      },
+    ])));
   }
 
   useEffect(() => {
@@ -42,6 +51,26 @@ export default function AdminWorkers() {
     }
   }
 
+  async function saveDepositAddress(id) {
+    setBusy(id);
+    setError('');
+    try {
+      await api(`/api/admin/workers/${id}/deposit-address`, {
+        method: 'POST',
+        body: {
+          address: addressDrafts[id]?.address || '',
+          cryptocurrency: String(addressDrafts[id]?.pair || 'USDT:TRC20').split(':')[0],
+          network: String(addressDrafts[id]?.pair || 'USDT:TRC20').split(':')[1],
+        },
+      });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <>
       <h2>Workers</h2>
@@ -55,6 +84,7 @@ export default function AdminWorkers() {
               <th>Pending</th>
               <th>Submitted</th>
               <th>Tier</th>
+              <th>Deposit address for client</th>
               <th>Status</th>
               <th />
             </tr>
@@ -78,8 +108,38 @@ export default function AdminWorkers() {
                     <option value={4}>Platinum</option>
                   </select>
                 </td>
+                <td>
+                  <div className="worker-address-editor">
+                    <select
+                      aria-label={`Deposit currency and network for ${w.display_name}`}
+                      value={addressDrafts[w.id]?.pair ?? 'USDT:TRC20'}
+                      onChange={(e) => setAddressDrafts((current) => ({
+                        ...current,
+                        [w.id]: { ...current[w.id], pair: e.target.value },
+                      }))}
+                    >
+                      <option value="USDT:TRC20">USDT · TRC20</option>
+                      <option value="USDT:ERC20">USDT · ERC20</option>
+                      <option value="USDT:BEP20">USDT · BEP20</option>
+                      <option value="BTC:BTC">BTC · Bitcoin</option>
+                    </select>
+                    <input
+                      aria-label={`Deposit crypto address for ${w.display_name}`}
+                      value={addressDrafts[w.id]?.address ?? ''}
+                      onChange={(e) => setAddressDrafts((current) => ({
+                        ...current,
+                        [w.id]: { ...current[w.id], address: e.target.value },
+                      }))}
+                      placeholder="Crypto address"
+                      maxLength={500}
+                    />
+                    <button type="button" className="primary small" disabled={busy === w.id}
+                      onClick={() => saveDepositAddress(w.id)}>Save</button>
+                  </div>
+                </td>
                 <td>{w.is_active ? 'Active' : 'Disabled'}</td>
                 <td>
+                  <Link className="ghost small" to={`/workers/${w.id}`}>Open account</Link>
                   <button
                     type="button"
                     className="ghost"

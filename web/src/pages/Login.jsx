@@ -43,7 +43,7 @@ export default function Login({ onLogin }) {
         <h1>AI Workstation</h1>
         <p className="meta">
           {mode === 'login'
-            ? 'john@demo.local / john123 · admin@demo.local / admin123'
+            ? 'Sign in with your account details.'
             : 'Worker accounts only.'}
         </p>
         {mode === 'register' && (
@@ -57,7 +57,7 @@ export default function Login({ onLogin }) {
           id="email"
           name="email"
           type="email"
-          defaultValue={mode === 'login' ? 'john@demo.local' : ''}
+          defaultValue=""
           autoComplete="username"
           required
         />
@@ -67,7 +67,7 @@ export default function Login({ onLogin }) {
             id="password"
             name="password"
             type={showPassword ? 'text' : 'password'}
-            defaultValue={mode === 'login' ? 'john123' : ''}
+            defaultValue=""
             autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
             minLength={mode === 'register' ? 8 : undefined}
             required

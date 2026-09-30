@@ -5,7 +5,7 @@ export const TIERS = [
     tag: 'Welcome Tier',
     rate: '1.00%',
     tone: 'basic',
-    offer: 'Includes a one-time training credit of £300 / €300',
+    offer: 'Includes a one-time account credit of £300 / €300',
     cta: 'Get Started',
   },
   {

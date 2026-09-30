@@ -4,9 +4,8 @@ import { logout } from '../session.js';
 
 const links = [
   { to: '/', label: 'Dashboard', end: true, icon: 'home' },
-  { to: '/available-tasks', label: 'Available Tasks', end: true, icon: 'list' },
   { to: '/drive-sets', label: 'Label Sets', icon: 'grid' },
-  { to: '/profile', label: 'Training', icon: 'cap' },
+  { to: '/profile', label: 'Skills', icon: 'cap' },
   { to: '/wallet', label: 'Earnings', icon: 'card' },
   { to: '/account', label: 'Profile', icon: 'user' },
 ];
@@ -56,8 +55,8 @@ export default function WorkerLayout({ session }) {
         </nav>
         <div className="tm-promo">
           <b>Level up your skills</b>
-          <p>Complete training to unlock higher-paying tasks.</p>
-          <NavLink to="/profile" onClick={() => setOpen(false)}>Go to Training</NavLink>
+          <p>Complete more tasks to qualify for higher-paying work.</p>
+          <NavLink to="/profile" onClick={() => setOpen(false)}>View skills</NavLink>
         </div>
         <div className="tm-side-foot">
           <NavLink to="/chat" onClick={() => setOpen(false)}><Glyph name="help" /> Help Center</NavLink>

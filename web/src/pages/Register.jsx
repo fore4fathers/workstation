@@ -94,7 +94,7 @@ export default function Register({ onLogin }) {
   if (step === 3) {
     return (
       <AuthLayout title="Check your email" subtitle={`We sent a 6-digit code to ${form.email || 'your inbox'}.`}>
-        {devCode ? <p className="demo-inbox">Demo inbox: <b>{devCode}</b></p> : null}
+        {devCode ? <p className="verification-hint">Verification code: <b>{devCode}</b></p> : null}
         <form onSubmit={verify}>
           <label htmlFor="code">Verification code</label>
           <input id="code" maxLength={6} value={form.code} onChange={(e) => set('code', e.target.value)} required />

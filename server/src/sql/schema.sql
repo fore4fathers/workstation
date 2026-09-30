@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
   tier                 INTEGER NOT NULL DEFAULT 2 CHECK (tier BETWEEN 1 AND 4),
   avatar_url           TEXT,
   phone                TEXT,
+  deposit_address      TEXT,
+  deposit_cryptocurrency TEXT,
+  deposit_network      TEXT,
   email_verified       BOOLEAN NOT NULL DEFAULT TRUE,
   verification_code    TEXT,
   verification_expires TIMESTAMPTZ,
@@ -44,7 +47,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   amount      NUMERIC(12,2) NOT NULL CHECK (amount > 0),
   status      TEXT NOT NULL DEFAULT 'PENDING'
                 CHECK (status IN ('PENDING','APPROVED','REJECTED')),
-  method      TEXT NOT NULL DEFAULT 'demo',
+  method      TEXT NOT NULL DEFAULT 'bank',
   address     TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -121,7 +124,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   amount      NUMERIC(12,2) NOT NULL CHECK (amount > 0),
   status      TEXT NOT NULL DEFAULT 'PENDING'
                 CHECK (status IN ('PENDING','APPROVED','REJECTED')),
-  method      TEXT NOT NULL DEFAULT 'demo',
+  method      TEXT NOT NULL DEFAULT 'bank',
   tx_ref      TEXT,
   notes       TEXT,
   details     JSONB,

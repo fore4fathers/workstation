@@ -9,6 +9,20 @@ export function when(value) {
   return d.toLocaleString();
 }
 
+export function paymentMethodLabel(method) {
+  return ({
+    usdt_trc20: 'USDT · TRC20',
+    usdt_erc20: 'USDT · ERC20',
+    usdt_bep20: 'USDT · BEP20',
+    btc: 'BTC',
+    crypto: 'Crypto',
+    instant: 'USDT instant',
+    wise: 'Wise',
+    bank: 'Bank',
+    transfer: 'Peer transfer',
+  })[method] || 'Manual transfer';
+}
+
 export function typeLabel(type) {
   return { image: 'Image', text: 'Text', intent: 'Intent' }[type] || type;
 }

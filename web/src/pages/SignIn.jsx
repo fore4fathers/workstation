@@ -12,7 +12,7 @@ export default function SignIn({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(!!localStorage.getItem('aw_email'));
   const [forgot, setForgot] = useState(false);
-  const [email, setEmail] = useState(localStorage.getItem('aw_email') || 'john@demo.local');
+  const [email, setEmail] = useState(localStorage.getItem('aw_email') || '');
   const [resetCode, setResetCode] = useState('');
   const [resetPass, setResetPass] = useState('');
   const [devCode, setDevCode] = useState('');
@@ -94,7 +94,7 @@ export default function SignIn({ onLogin }) {
   if (forgot === 'code') {
     return (
       <AuthLayout title="Enter code" subtitle="Check your inbox for a 6-digit code.">
-        {devCode ? <p className="demo-inbox">Demo inbox: <b>{devCode}</b></p> : null}
+        {devCode ? <p className="verification-hint">Verification code: <b>{devCode}</b></p> : null}
         <form onSubmit={doReset}>
           <label htmlFor="code">Code</label>
           <input id="code" value={resetCode} onChange={(e) => setResetCode(e.target.value)} maxLength={6} required />

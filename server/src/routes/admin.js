@@ -1,50 +1,15 @@
 import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { query, withTransaction } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { dollarsFromCents } from '../auth.js';
 import { clampTier, tierInfo } from '../tiers.js';
 import { config } from '../config.js';
+import { saveImageUpload } from '../uploads.js';
 
 const CIVITAI_PROMPT_FILTER = `nsfw_level = 'None' AND NULLIF(BTRIM(prompt), '') IS NOT NULL`;
-
-const IMAGE_EXT = {
-  'image/jpeg': '.jpg',
-  'image/jpg': '.jpg',
-  'image/png': '.png',
-  'image/gif': '.gif',
-  'image/webp': '.webp',
-};
-
-function saveImageUpload({ name, mime, data }) {
-  const ext = IMAGE_EXT[String(mime || '').toLowerCase()]
-    || IMAGE_EXT[`image/${path.extname(String(name || '')).slice(1).toLowerCase()}`]
-    || null;
-  if (!ext) {
-    const err = new Error('images only (jpg, png, gif, webp)');
-    err.status = 400;
-    throw err;
-  }
-  const raw = String(data || '');
-  const b64 = raw.includes(',') ? raw.slice(raw.indexOf(',') + 1) : raw;
-  const buf = Buffer.from(b64, 'base64');
-  if (!buf.length) {
-    const err = new Error('empty file');
-    err.status = 400;
-    throw err;
-  }
-  if (buf.length > 5 * 1024 * 1024) {
-    const err = new Error('file too large (5MB)');
-    err.status = 400;
-    throw err;
-  }
-  const filename = `${crypto.randomBytes(16).toString('hex')}${ext}`;
-  fs.writeFileSync(path.join(config.uploadDir, filename), buf);
-  return { url: `/uploads/${filename}`, name: name || filename };
-}
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth, requireAdmin);
@@ -84,7 +49,7 @@ adminRouter.get('/tasks', async (_req, res) => {
                       AND EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id)
                       AND NOT EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id
                                       AND COALESCE(di.payload->>'image_url', '') NOT ILIKE '%picsum.photos%')
-                 THEN 'Civitai Image Caption Training' ELSE t.title END AS training_title,
+                 THEN 'Civitai Image Caption Labeling' ELSE t.title END AS display_title,
             CASE WHEN t.type = 'image'
                       AND EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id)
                       AND NOT EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id
@@ -95,7 +60,7 @@ adminRouter.get('/tasks', async (_req, res) => {
      FROM tasks t ORDER BY t.id DESC`,
   );
   res.json({
-    tasks: rows.map((t) => ({ ...t, title: t.training_title, pay_dollars: dollarsFromCents(t.pay_cents) })),
+    tasks: rows.map((t) => ({ ...t, title: t.display_title, pay_dollars: dollarsFromCents(t.pay_cents) })),
   });
 });
 
@@ -426,6 +391,7 @@ adminRouter.post('/payouts/:id/void', async (req, res) => {
 adminRouter.get('/workers', async (_req, res) => {
   const { rows } = await query(
     `SELECT u.id, u.email, u.display_name, u.is_active, u.lifetime_completed, u.created_at, u.tier,
+            u.deposit_address, u.deposit_cryptocurrency, u.deposit_network,
             ac.balance, ac.frozen, ac.pending,
             (SELECT COUNT(*)::int FROM assignments a
               WHERE a.worker_id = u.id AND a.status = 'submitted') AS submitted
@@ -443,6 +409,55 @@ adminRouter.get('/workers', async (_req, res) => {
       pending: Number(r.pending),
     })),
   });
+});
+
+adminRouter.get('/workers/:id', async (req, res) => {
+  const { rows: userRows } = await query(
+    `SELECT id, email, display_name, phone, is_active, lifetime_completed, created_at, tier,
+            deposit_address, deposit_cryptocurrency, deposit_network
+     FROM users WHERE id = $1 AND role = 'worker'`,
+    [req.params.id],
+  );
+  const worker = userRows[0];
+  if (!worker) return res.status(404).json({ error: 'worker not found' });
+  const [account, addresses, deposits, withdrawals, ledger] = await Promise.all([
+    query('SELECT balance, frozen, pending FROM accounts WHERE user_id = $1', [worker.id]),
+    query('SELECT id, cryptocurrency, network, address, label, is_default, created_at FROM user_wallet_addresses WHERE user_id = $1 ORDER BY id', [worker.id]),
+    query('SELECT id, amount, method, status, tx_ref, notes, details, created_at FROM deposits WHERE user_id = $1 ORDER BY id DESC LIMIT 20', [worker.id]),
+    query('SELECT id, amount, method, address, status, created_at FROM withdrawals WHERE user_id = $1 ORDER BY id DESC LIMIT 20', [worker.id]),
+    query('SELECT id, kind, amount, ref_type, ref_id, note, created_at FROM ledger WHERE user_id = $1 ORDER BY id DESC LIMIT 30', [worker.id]),
+  ]);
+  res.json({
+    worker: { ...worker, ...tierInfo(worker.tier) },
+    account: Object.fromEntries(Object.entries(account.rows[0] || {}).map(([key, value]) => [key, Number(value)])),
+    addresses: addresses.rows,
+    deposits: deposits.rows.map((deposit) => ({ ...deposit, amount: Number(deposit.amount) })),
+    withdrawals: withdrawals.rows.map((withdrawal) => ({ ...withdrawal, amount: Number(withdrawal.amount) })),
+    ledger: ledger.rows.map((entry) => ({ ...entry, amount: Number(entry.amount) })),
+  });
+});
+
+adminRouter.post('/workers/:id/deposit-address', async (req, res) => {
+  const address = String(req.body?.address || '').trim();
+  const cryptocurrency = String(req.body?.cryptocurrency || '').toUpperCase();
+  const network = String(req.body?.network || '').toUpperCase();
+  if (address.length > 500) return res.status(400).json({ error: 'address is too long' });
+  if (address) {
+    const { rows: supported } = await query(
+      'SELECT 1 FROM cryptocurrency_networks WHERE cryptocurrency = $1 AND network = $2',
+      [cryptocurrency, network],
+    );
+    if (!supported[0]) return res.status(400).json({ error: 'select a supported currency and network' });
+  }
+  const { rows } = await query(
+    `UPDATE users
+     SET deposit_address = $1, deposit_cryptocurrency = $2, deposit_network = $3
+     WHERE id = $4 AND role = 'worker'
+     RETURNING id, deposit_address, deposit_cryptocurrency, deposit_network`,
+    [address || null, address ? cryptocurrency : null, address ? network : null, req.params.id],
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'worker not found' });
+  res.json({ worker: rows[0] });
 });
 
 adminRouter.post('/workers/:id/active', async (req, res) => {
@@ -479,6 +494,18 @@ adminRouter.get('/deposits', async (_req, res) => {
      ORDER BY CASE d.status WHEN 'PENDING' THEN 0 ELSE 1 END, d.id DESC`,
   );
   res.json({ deposits: rows.map((d) => ({ ...d, amount: Number(d.amount) })) });
+});
+
+adminRouter.get('/deposits/:id/proof', async (req, res) => {
+  const { rows } = await query(`SELECT details->>'proof_filename' AS filename FROM deposits WHERE id = $1`, [req.params.id]);
+  const filename = rows[0]?.filename;
+  if (!filename || !/^[a-f0-9]{32}\.(jpg|png|gif|webp)$/.test(filename)) {
+    return res.status(404).json({ error: 'proof image not found' });
+  }
+  const filePath = path.join(config.depositProofDir, path.basename(filename));
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'proof image not found' });
+  res.set('Cache-Control', 'private, no-store');
+  res.sendFile(filePath);
 });
 
 async function settleDeposit(id, action) {
@@ -544,7 +571,7 @@ adminRouter.get('/drive-sets', async (_req, res) => {
             CASE WHEN EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id)
                       AND NOT EXISTS (SELECT 1 FROM task_items di WHERE di.task_id = t.id
                                       AND COALESCE(di.payload->>'image_url', '') NOT ILIKE '%picsum.photos%')
-                 THEN 'Civitai Image Caption Training' ELSE t.title END AS title,
+                 THEN 'Civitai Image Caption Labeling' ELSE t.title END AS title,
             COUNT(ic.id)::int AS answered_count,
             COUNT(ic.id) FILTER (WHERE ic.response_type = 'best_match')::int AS best_match_count,
             COUNT(ic.id) FILTER (WHERE ic.response_type = 'alternative_match')::int AS alternative_match_count,
@@ -584,13 +611,13 @@ adminRouter.post('/drive-sets', async (req, res) => {
   const { rows: t } = await query('SELECT type FROM tasks WHERE id = $1', [task_id]);
   if (!t[0]) return res.status(404).json({ error: 'task not found' });
   if (t[0].type !== 'image') return res.status(400).json({ error: 'only image tasks supported' });
-  const { rows: demoCheck } = await query(
+  const { rows: imageSourceCheck } = await query(
     `SELECT COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE payload->>'image_url' ILIKE '%picsum.photos%')::int AS demo_count
+            COUNT(*) FILTER (WHERE payload->>'image_url' ILIKE '%picsum.photos%')::int AS picsum_count
      FROM task_items WHERE task_id = $1`,
     [task_id],
   );
-  const isCivitaiBacked = demoCheck[0].total > 0 && demoCheck[0].total === demoCheck[0].demo_count;
+  const isCivitaiBacked = imageSourceCheck[0].total > 0 && imageSourceCheck[0].total === imageSourceCheck[0].picsum_count;
   const { rows: itemCount } = isCivitaiBacked
     ? await query(`SELECT COUNT(*)::int AS count FROM images WHERE ${CIVITAI_PROMPT_FILTER}`)
     : await query('SELECT COUNT(*)::int AS count FROM task_items WHERE task_id = $1', [task_id]);

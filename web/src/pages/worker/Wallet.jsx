@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
-import { ledgerLabel, money, when } from '../../format.js';
+import { ledgerLabel, money, paymentMethodLabel, when } from '../../format.js';
 import { IconBack } from '../../icons.jsx';
 import { Spinner } from '../../ui.jsx';
 
 const METHODS = [
-  { id: 'demo', label: 'Demo' },
   { id: 'usdt_trc20', label: 'USDT · TRC20', crypto: 'USDT', network: 'TRC20' },
   { id: 'usdt_erc20', label: 'USDT · ERC20', crypto: 'USDT', network: 'ERC20' },
   { id: 'usdt_bep20', label: 'USDT · BEP20', crypto: 'USDT', network: 'BEP20' },
@@ -18,7 +17,7 @@ export default function Wallet() {
   const [error, setError] = useState('');
   const [formErr, setFormErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const [wdMethod, setWdMethod] = useState('demo');
+  const [wdMethod, setWdMethod] = useState('usdt_trc20');
 
   async function load() {
     try {
@@ -51,29 +50,6 @@ export default function Wallet() {
       if (methodMeta?.crypto) body.address_id = Number(fd.get('address_id'));
       else body.address = fd.get('address');
       await api('/api/wallet/withdraw', { method: 'POST', body });
-      e.target.reset();
-      await load();
-    } catch (err) {
-      setFormErr(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onDeposit(e) {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    setFormErr('');
-    setBusy(true);
-    try {
-      await api('/api/wallet/deposit', {
-        method: 'POST',
-        body: {
-          amount: Number(fd.get('dep_amount')),
-          method: fd.get('dep_method'),
-          tx_ref: fd.get('tx_ref'),
-        },
-      });
       e.target.reset();
       await load();
     } catch (err) {
@@ -149,21 +125,11 @@ export default function Wallet() {
         {formErr ? <p className="error">{formErr}</p> : null}
 
         <div className="dash-grid">
-          <form className="card" onSubmit={onDeposit}>
+          <div className="card">
             <h2>Deposit</h2>
-            <label htmlFor="dep_amount">Amount</label>
-            <input id="dep_amount" name="dep_amount" type="number" step="0.01" min="0.01" required />
-            <label htmlFor="dep_method">Method</label>
-            <select id="dep_method" name="dep_method" defaultValue="demo">
-              {METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-            </select>
-            <label htmlFor="tx_ref">Tx ref</label>
-            <input id="tx_ref" name="tx_ref" placeholder="optional" />
-            <button className="primary" type="submit" disabled={busy}>
-              {busy ? <Spinner size={18} /> : null}
-              Request
-            </button>
-          </form>
+            <p className="meta">Choose how to deposit and attach a transfer screenshot when requested.</p>
+            <Link className="primary small" to="/wallet/deposit">Start deposit</Link>
+          </div>
 
           <form className="card" onSubmit={onWithdraw}>
             <h2>Withdraw</h2>
@@ -225,7 +191,7 @@ export default function Wallet() {
           <div key={d.id} className="task-card">
             <div className="grow">
               <b>{money(d.amount)}</b>
-              <div className="meta">{d.method} · {when(d.created_at)}</div>
+              <div className="meta">{paymentMethodLabel(d.method)} · {when(d.created_at)}</div>
             </div>
             <span className={`pill ${d.status.toLowerCase()}`}>{d.status}</span>
           </div>
@@ -237,7 +203,7 @@ export default function Wallet() {
           <div key={w.id} className="task-card">
             <div className="grow">
               <b>{money(w.amount)}</b>
-              <div className="meta">{w.method} · {w.status} · {when(w.created_at)}</div>
+              <div className="meta">{paymentMethodLabel(w.method)} · {w.status} · {when(w.created_at)}</div>
             </div>
             <span className={`pill ${w.status.toLowerCase()}`}>{w.status}</span>
           </div>

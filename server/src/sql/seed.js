@@ -3,15 +3,15 @@ import { pool, query } from '../db.js';
 import { migrate } from './migrate.js';
 
 const workers = [
-  { email: 'john@demo.local', name: 'John', password: 'john123', balance: 189.9, lifetime: 142 },
-  { email: 'mia@demo.local', name: 'Mia', password: 'mia123', balance: 42.1, lifetime: 80 },
-  { email: 'lee@demo.local', name: 'Lee', password: 'lee123', balance: 12, lifetime: 40 },
-  { email: 'sam@demo.local', name: 'Sam', password: 'sam123', balance: 8, lifetime: 22 },
-  { email: 'ava@demo.local', name: 'Ava', password: 'ava123', balance: 5, lifetime: 18 },
-  { email: 'rio@demo.local', name: 'Rio', password: 'rio123', balance: 3, lifetime: 9 },
-  { email: 'nina@demo.local', name: 'Nina', password: 'nina123', balance: 2, lifetime: 6 },
-  { email: 'omar@demo.local', name: 'Omar', password: 'omar123', balance: 1, lifetime: 4 },
-  { email: 'zoe@demo.local', name: 'Zoe', password: 'zoe123', balance: 1, lifetime: 2 },
+  { email: 'john@example.invalid', name: 'John', password: 'john123', balance: 189.9, lifetime: 142 },
+  { email: 'mia@example.invalid', name: 'Mia', password: 'mia123', balance: 42.1, lifetime: 80 },
+  { email: 'lee@example.invalid', name: 'Lee', password: 'lee123', balance: 12, lifetime: 40 },
+  { email: 'sam@example.invalid', name: 'Sam', password: 'sam123', balance: 8, lifetime: 22 },
+  { email: 'ava@example.invalid', name: 'Ava', password: 'ava123', balance: 5, lifetime: 18 },
+  { email: 'rio@example.invalid', name: 'Rio', password: 'rio123', balance: 3, lifetime: 9 },
+  { email: 'nina@example.invalid', name: 'Nina', password: 'nina123', balance: 2, lifetime: 6 },
+  { email: 'omar@example.invalid', name: 'Omar', password: 'omar123', balance: 1, lifetime: 4 },
+  { email: 'zoe@example.invalid', name: 'Zoe', password: 'zoe123', balance: 1, lifetime: 2 },
 ];
 
 function imageItem(url, gold) {
@@ -38,7 +38,7 @@ export async function seed({ reset = true } = {}) {
   const { rows: adminRows } = await query(
     `INSERT INTO users (email, password_hash, display_name, role)
      VALUES ($1,$2,'Ada Admin','admin') RETURNING id`,
-    ['admin@demo.local', adminHash],
+    ['admin@example.invalid', adminHash],
   );
   const adminId = adminRows[0].id;
   await query('INSERT INTO accounts (user_id, balance, frozen, pending) VALUES ($1, 0, 0, 0)', [adminId]);
@@ -101,7 +101,7 @@ export async function seed({ reset = true } = {}) {
     return rows[0].id;
   }
 
-  await createTask('image', 'Image Labeling', 'Label images for AI training', 85, 5, imageItems);
+  await createTask('image', 'Image Labeling', 'Label images for AI datasets', 85, 5, imageItems);
   await createTask('text', 'Text Annotation', 'Annotate text data', 115, 4, textItems);
   await createTask('intent', 'Intent Classification', 'Classify user intents', 130, 5, intentItems);
 }
@@ -110,7 +110,7 @@ const isMain = process.argv[1] && process.argv[1].endsWith('seed.js');
 if (isMain) {
   seed()
     .then(async () => {
-      console.log('seeded admin@demo.local / john@demo.local');
+      console.log('Initial worker and administrator accounts created.');
       await pool.end();
     })
     .catch(async (err) => {

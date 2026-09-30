@@ -13,8 +13,8 @@ export default function Landing() {
 
       <section className="landing-hero">
         <div className="landing-copy">
-          <p className="eyebrow">AI training</p>
-          <h1>Train AI. Earn rewards.</h1>
+          <p className="eyebrow">AI labeling work</p>
+          <h1>Label data. Earn rewards.</h1>
           <p>
             Complete labeling tasks, keep your quality score up, and withdraw when pay is released.
           </p>
@@ -42,7 +42,7 @@ export default function Landing() {
 
       <footer className="tm-foot">
         <span>© 2026 EngageSphere. All rights reserved.</span>
-        <span>Demo: john@demo.local / john123</span>
+        <span>Secure worker and admin accounts</span>
       </footer>
     </div>
   );

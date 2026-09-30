@@ -9,11 +9,11 @@ const CIVITAI_PROMPT_FILTER = `nsfw_level = 'None' AND NULLIF(BTRIM(prompt), '')
 async function isCivitaiBackedTask(taskId) {
   const { rows } = await query(
     `SELECT COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE payload->>'image_url' ILIKE '%picsum.photos%')::int AS demo_count
+            COUNT(*) FILTER (WHERE payload->>'image_url' ILIKE '%picsum.photos%')::int AS picsum_count
      FROM task_items WHERE task_id = $1`,
     [taskId],
   );
-  return rows[0].total > 0 && rows[0].total === rows[0].demo_count;
+  return rows[0].total > 0 && rows[0].total === rows[0].picsum_count;
 }
 
 async function getCivitaiItems(limit) {
@@ -64,7 +64,7 @@ driveSetsRouter.get('/', async (req, res) => {
     const civitaiBacked = await isCivitaiBackedTask(row.task_id);
     return {
       ...row,
-      title: civitaiBacked ? 'Civitai Image Caption Training' : row.title,
+      title: civitaiBacked ? 'Civitai Image Caption Labeling' : row.title,
       civitai_backed: civitaiBacked,
       foreign_commission_cents: Number(row.commission_cents ?? COMMISSION_CENTS_DEFAULT),
       best_match_count: Number(row.best_match_count || 0),
@@ -93,7 +93,7 @@ async function getOwnedSet(setId, userId) {
   const civitaiBacked = await isCivitaiBackedTask(rows[0].task_id);
   return {
     ...rows[0],
-    title: civitaiBacked ? 'Civitai Image Caption Training' : rows[0].title,
+    title: civitaiBacked ? 'Civitai Image Caption Labeling' : rows[0].title,
     civitai_backed: civitaiBacked,
     foreign_commission_cents: Number(rows[0].commission_cents ?? COMMISSION_CENTS_DEFAULT),
     best_match_count: Number(rows[0].best_match_count || 0),
@@ -164,8 +164,8 @@ driveSetsRouter.post('/answer', async (req, res) => {
     if (set.status !== 'active') return { status: 400, body: { error: 'drive set not active' } };
     if (imageIndex >= set.total_items) return { status: 400, body: { error: 'image index out of range' } };
 
-    const trainingSet = { ...set, civitai_backed: await isCivitaiBackedTask(set.task_id) };
-    const setItems = await getSetItems(trainingSet);
+    const resolvedSet = { ...set, civitai_backed: await isCivitaiBackedTask(set.task_id) };
+    const setItems = await getSetItems(resolvedSet);
     const item = setItems[imageIndex];
     if (!item) return { status: 404, body: { error: 'image not found' } };
     const options = buildOptions(item.payload, `${set.id}:${imageIndex}`);

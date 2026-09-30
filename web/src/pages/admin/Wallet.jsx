@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
 import { money, when } from '../../format.js';
 
@@ -36,15 +37,17 @@ export default function AdminWallet() {
       <div className="card">
         <table className="table">
           <thead>
-            <tr><th>User</th><th>Amount</th><th>Status</th><th>When</th><th /></tr>
+            <tr><th>User</th><th>Amount</th><th>Withdrawal wallet</th><th>Status</th><th>When</th><th>Account</th><th /></tr>
           </thead>
           <tbody>
             {(rows || []).map((w) => (
               <tr key={w.id}>
                 <td>{w.display_name}<div className="meta">{w.email}</div></td>
                 <td className="money">{money(w.amount)}</td>
+                <td><span className="wallet-address">{w.address || '—'}</span></td>
                 <td><span className={`pill ${w.status.toLowerCase()}`}>{w.status}</span></td>
                 <td>{when(w.created_at)}</td>
+                <td><Link className="ghost small" to={`/workers/${w.user_id}`}>Open account</Link></td>
                 <td className="row-actions">
                   {w.status === 'PENDING' ? (
                     <>

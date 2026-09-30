@@ -2,13 +2,16 @@ import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { DEPOSIT_METHODS, WITHDRAW_METHODS, methodToCrypto } from '../tiers.js';
+import { config } from '../config.js';
+import { saveImageUpload } from '../uploads.js';
 
 export const walletRouter = Router();
 walletRouter.use(requireAuth);
 
 walletRouter.get('/', async (req, res) => {
   const { rows: acct } = await query(
-    'SELECT balance, frozen, pending FROM accounts WHERE user_id = $1',
+    `SELECT a.balance, a.frozen, a.pending, u.deposit_address, u.deposit_cryptocurrency, u.deposit_network
+     FROM accounts a JOIN users u ON u.id = a.user_id WHERE a.user_id = $1`,
     [req.user.id],
   );
   const { rows: ledger } = await query(
@@ -22,7 +25,7 @@ walletRouter.get('/', async (req, res) => {
     [req.user.id],
   );
   const { rows: deposits } = await query(
-    `SELECT id, amount, status, method, tx_ref, created_at, updated_at
+    `SELECT id, amount, status, method, tx_ref, details, created_at, updated_at
      FROM deposits WHERE user_id = $1 ORDER BY id DESC`,
     [req.user.id],
   );
@@ -36,6 +39,9 @@ walletRouter.get('/', async (req, res) => {
       balance: Number(acct[0]?.balance || 0),
       frozen: Number(acct[0]?.frozen || 0),
       pending: Number(acct[0]?.pending || 0),
+      deposit_address: acct[0]?.deposit_address || null,
+      deposit_cryptocurrency: acct[0]?.deposit_cryptocurrency || null,
+      deposit_network: acct[0]?.deposit_network || null,
     },
     ledger: ledger.map((l) => ({ ...l, amount: Number(l.amount) })),
     withdrawals: withdrawals.map((w) => ({ ...w, amount: Number(w.amount) })),
@@ -48,16 +54,43 @@ walletRouter.get('/', async (req, res) => {
 walletRouter.post('/deposit', async (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'forbidden' });
   const amount = Number(req.body?.amount);
-  const method = String(req.body?.method || 'demo');
+  const method = String(req.body?.method || 'bank');
   const tx_ref = req.body?.tx_ref ? String(req.body.tx_ref).trim() : null;
   const notes = req.body?.notes ? String(req.body.notes).trim() : null;
-  const details = req.body?.details && typeof req.body.details === 'object' ? req.body.details : null;
+  let details = req.body?.details && typeof req.body.details === 'object' ? { ...req.body.details } : {};
   if (!Number.isFinite(amount) || amount < 10) return res.status(400).json({ error: 'minimum deposit is 10' });
   if (!DEPOSIT_METHODS.includes(method)) return res.status(400).json({ error: 'invalid method' });
+  const cryptoDeposit = ['crypto', 'instant', 'usdt_trc20', 'usdt_erc20', 'usdt_bep20', 'btc'].includes(method);
+  if (cryptoDeposit) {
+    const assigned = await query(
+      'SELECT deposit_address, deposit_cryptocurrency, deposit_network FROM users WHERE id = $1',
+      [req.user.id],
+    );
+    const wallet = assigned.rows[0];
+    const methodCrypto = methodToCrypto(method);
+    const cryptocurrency = String(method === 'instant' ? 'USDT' : details.coin || methodCrypto?.cryptocurrency || '').toUpperCase();
+    const network = String(details.network || methodCrypto?.network || '').toUpperCase();
+    if (!wallet?.deposit_address) return res.status(400).json({ error: 'a deposit address has not been assigned to your account' });
+    if (wallet.deposit_cryptocurrency !== cryptocurrency || wallet.deposit_network !== network) {
+      return res.status(400).json({ error: 'the selected currency and network do not match your assigned deposit address' });
+    }
+    details.deposit_address = {
+      address: wallet.deposit_address,
+      cryptocurrency: wallet.deposit_cryptocurrency,
+      network: wallet.deposit_network,
+    };
+  }
+  if (cryptoDeposit && !req.body?.proof_image) {
+    return res.status(400).json({ error: 'upload a transfer screenshot for crypto deposits' });
+  }
+  if (req.body?.proof_image) {
+    const proof = saveImageUpload(req.body.proof_image, config.depositProofDir);
+    details = { ...details, proof_filename: proof.filename, proof_name: proof.name };
+  }
   const { rows } = await query(
     `INSERT INTO deposits (user_id, amount, status, method, tx_ref, notes, details)
      VALUES ($1, $2, 'PENDING', $3, $4, $5, $6) RETURNING *`,
-    [req.user.id, amount, method, tx_ref, notes, details],
+    [req.user.id, amount, method, tx_ref, notes, Object.keys(details).length ? details : null],
   );
   res.status(201).json({ deposit: { ...rows[0], amount: Number(rows[0].amount) } });
 });
@@ -105,7 +138,7 @@ walletRouter.post('/addresses', async (req, res) => {
 walletRouter.post('/withdraw', async (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'forbidden' });
   const amount = Number(req.body?.amount);
-  const method = String(req.body?.method || 'demo');
+  const method = String(req.body?.method || 'bank');
   let address = req.body?.address ? String(req.body.address).trim() : null;
   if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'invalid amount' });
   if (!WITHDRAW_METHODS.includes(method)) return res.status(400).json({ error: 'invalid method' });

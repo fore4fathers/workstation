@@ -12,6 +12,14 @@ export default function WorkerDriveSets() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [complete, setComplete] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [submissionNotice, setSubmissionNotice] = useState('');
+
+  useEffect(() => {
+    if (!submissionNotice) return undefined;
+    const timer = window.setTimeout(() => setSubmissionNotice(''), 2400);
+    return () => window.clearTimeout(timer);
+  }, [submissionNotice]);
 
   async function load() {
     const data = await api('/api/worker/drive-sets');
@@ -37,6 +45,7 @@ export default function WorkerDriveSets() {
       const firstUnanswered = items.findIndex((item) => item.selected_label == null);
       const index = firstUnanswered < 0 ? Math.max(0, items.length - 1) : firstUnanswered;
       setCurrentIndex(index);
+      setImageLoading(true);
       setSelectedOption(null);
       setForeignMode(false);
       setForeignResponse('');
@@ -53,7 +62,9 @@ export default function WorkerDriveSets() {
   async function submitAnswer() {
     if (!item || (foreignMode ? !foreignResponse.trim() : selectedOption == null)) return;
     const response = foreignMode ? foreignResponse.trim() : item.options[selectedOption];
+    const submittedIndex = currentIndex;
     setBusy(true);
+    setImageLoading(true);
     setError('');
     try {
       const result = await api('/api/worker/drive-sets/answer', {
@@ -75,11 +86,18 @@ export default function WorkerDriveSets() {
         best_match_count: result.best_match_count,
         total_commission: result.total_commission,
       }));
-      setSelectedOption(null);
-      setForeignMode(false);
-      setForeignResponse('');
-      await load();
+      setSubmissionNotice(`Response saved · ${money(Number(result.commission_cents || 0) / 100)} added`);
+      if (submittedIndex < activeSet.items.length - 1) {
+        setCurrentIndex(submittedIndex + 1);
+        setSelectedOption(null);
+        setForeignMode(false);
+        setForeignResponse('');
+      } else {
+        setImageLoading(false);
+      }
+      load().catch((e) => setError(e.message));
     } catch (e) {
+      setImageLoading(false);
       setError(e.message);
     } finally {
       setBusy(false);
@@ -88,6 +106,7 @@ export default function WorkerDriveSets() {
 
   async function advance() {
     if (currentIndex < activeSet.items.length - 1) {
+      setImageLoading(true);
       setCurrentIndex((index) => index + 1);
       setSelectedOption(null);
       setForeignMode(false);
@@ -124,17 +143,23 @@ export default function WorkerDriveSets() {
             <span>Earned <b>{money(earned)}</b></span>
           </div>
         </div>
+        {submissionNotice ? <p className="drive-submission-notice" role="status">{submissionNotice}</p> : null}
         <div className="drive-trainer-image-wrap">
-          <img className="drive-trainer-image" src={item.image_url} alt="Training item" />
+          {imageLoading ? <div className="drive-image-loader" role="status" aria-live="polite">
+            <span className="spinner" style={{ width: 32, height: 32 }} />
+            <span>Loading image…</span>
+          </div> : null}
+          <img key={`${activeSet.id}:${item.image_index}`} className="drive-trainer-image" src={item.image_url}
+            alt="Image labeling item" onLoad={() => setImageLoading(false)} onError={() => setImageLoading(false)} />
         </div>
         <h3>{activeSet.civitai_backed
           ? 'Which generation caption best matches this image?'
           : 'What is in this image?'}</h3>
         <p className="meta drive-trainer-hint">Every response earns a reward. The closest caption earns the highest rate; an answer in another language is accepted too.</p>
         <div className="drive-response-mode">
-          <button type="button" className={foreignMode ? 'ghost' : 'primary'} disabled={busy || hasAnswer || complete}
+          <button type="button" className={foreignMode ? 'ghost' : 'primary'} disabled={busy || imageLoading || hasAnswer || complete}
             onClick={() => { setForeignMode(false); setForeignResponse(''); }}>Choose a caption</button>
-          <button type="button" className={foreignMode ? 'primary' : 'ghost'} disabled={busy || hasAnswer || complete}
+          <button type="button" className={foreignMode ? 'primary' : 'ghost'} disabled={busy || imageLoading || hasAnswer || complete}
             onClick={() => { setForeignMode(true); setSelectedOption(null); }}>Respond in another language</button>
         </div>
         {hasAnswer && item.response_type === 'foreign_language' ? (
@@ -143,14 +168,14 @@ export default function WorkerDriveSets() {
           <label className="drive-foreign-answer">
             Your response in another language
             <textarea value={foreignResponse} onChange={(e) => setForeignResponse(e.target.value)} rows={4}
-              maxLength={4000} placeholder="Describe what you see in any language" disabled={busy || complete} />
+              maxLength={4000} placeholder="Describe what you see in any language" disabled={busy || imageLoading || complete} />
           </label>
         ) : !foreignMode ? (
           <div className="drive-trainer-options">
             {item.options.map((option, index) => (
               <button key={option} type="button" title={option}
                 className={`drive-caption-option ${((hasAnswer && index === selectedOptionIndex) || (!hasAnswer && selectedOption === index)) ? 'selected' : ''}`}
-                onClick={() => setSelectedOption(index)} disabled={busy || hasAnswer || complete}>
+                onClick={() => setSelectedOption(index)} disabled={busy || imageLoading || hasAnswer || complete}>
                 {activeSet.civitai_backed && option.length > 180 ? `${option.slice(0, 177)}…` : option}
               </button>
             ))}
@@ -162,7 +187,8 @@ export default function WorkerDriveSets() {
         </p>}
         {error ? <p className="error">{error}</p> : null}
         <div className={`row-actions${currentIndex === 0 ? ' single-action' : ''}`}>
-          {currentIndex > 0 ? <button className="ghost" disabled={busy} onClick={() => {
+          {currentIndex > 0 ? <button className="ghost" disabled={busy || imageLoading} onClick={() => {
+            setImageLoading(true);
             setCurrentIndex((index) => index - 1);
             setSelectedOption(null);
             setForeignMode(false);

@@ -82,7 +82,7 @@ export default function AdminDriveSets() {
     <>
       <div className="section-h">
         <h2>Label Sets</h2>
-        <p className="meta">Assign image sets. The seeded demo image task now uses the imported Civitai images and their stored prompts.</p>
+        <p className="meta">Assign image sets using imported Civitai images and their stored prompts.</p>
       </div>
       {error ? <p className="error">{error}</p> : null}
       <div className="card">

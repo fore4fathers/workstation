@@ -6,7 +6,7 @@ import { signToken, publicUser } from '../auth.js';
 import { tierInfo } from '../tiers.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
-const ACCESS_CODES = new Set(['AW-BETA', 'DEMO-2026']);
+const ACCESS_CODES = new Set(['AW-BETA', 'LABEL-2026']);
 
 function issueCode() {
   return String(crypto.randomInt(100000, 1000000));

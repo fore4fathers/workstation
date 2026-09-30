@@ -144,11 +144,11 @@ export default function WorkerHome({ session }) {
 
         <aside className="dash-rail">
           <div className="card tm-train">
-            <h3>Training Center</h3>
-            <p className="meta">Complete training to unlock higher-paying tasks and boost your quality score.</p>
+            <h3>Skills Center</h3>
+            <p className="meta">Complete more work to unlock higher-paying tasks and improve your quality score.</p>
             <div className="dash-bar"><span style={{ width: `${(tier / 4) * 100}%` }} /></div>
             <p className="meta">{tier} / 4 modules · {tierName}</p>
-            <Link className="dash-type-btn blue-btn" to="/profile">Continue Training</Link>
+            <Link className="dash-type-btn blue-btn" to="/profile">View your skills</Link>
           </div>
           <div className="card">
             <h3>Why your work matters</h3>

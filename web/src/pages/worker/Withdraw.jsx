@@ -6,7 +6,6 @@ import { Spinner } from '../../ui.jsx';
 import { money } from '../../format.js';
 
 const METHODS = [
-  { id: 'demo', label: 'Demo', desc: 'Internal memo' },
   { id: 'wise', label: 'Wise', desc: 'Email payout' },
   { id: 'bank', label: 'Bank', desc: 'Wire' },
   { id: 'usdt_trc20', label: 'USDT · TRC20', crypto: 'USDT', network: 'TRC20' },

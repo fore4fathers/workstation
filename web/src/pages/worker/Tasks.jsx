@@ -74,7 +74,7 @@ export default function WorkerTasks({ session }) {
         <div className="qa-grid">
           <button type="button" className="qa-card" onClick={() => setPanel('details')}>
             <b>Details</b>
-            <span>Balance and training requirements</span>
+            <span>Balance and account requirements</span>
           </button>
           <button type="button" className="qa-card" onClick={() => setPanel('packages')}>
             <b>Packages</b>

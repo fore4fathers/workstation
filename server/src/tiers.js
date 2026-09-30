@@ -6,7 +6,7 @@ export const TIERS = [
     rate: '1.00%',
     multiplier: 1,
     tone: 'basic',
-    offer: 'Includes a one-time training credit of £300 / €300',
+    offer: 'Includes a one-time account credit of £300 / €300',
     cta: 'Get Started',
   },
   {
@@ -70,8 +70,8 @@ export function applyTierPay(payDollars, tier) {
   return Number((Number(payDollars || 0) * multiplier).toFixed(2));
 }
 
-export const WITHDRAW_METHODS = ['demo', 'usdt_trc20', 'usdt_erc20', 'usdt_bep20', 'btc', 'bank', 'wise'];
-export const DEPOSIT_METHODS = ['demo', 'wise', 'instant', 'crypto', 'bank', 'transfer', 'usdt_trc20', 'usdt_erc20', 'usdt_bep20', 'btc'];
+export const WITHDRAW_METHODS = ['usdt_trc20', 'usdt_erc20', 'usdt_bep20', 'btc', 'bank', 'wise'];
+export const DEPOSIT_METHODS = ['wise', 'instant', 'crypto', 'bank', 'transfer', 'usdt_trc20', 'usdt_erc20', 'usdt_bep20', 'btc'];
 
 export function methodToCrypto(method) {
   return {

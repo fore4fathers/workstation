@@ -36,6 +36,11 @@ export async function migrate() {
 
   await query(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS payout_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deposit_address TEXT`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deposit_cryptocurrency TEXT`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deposit_network TEXT`);
+  await query(`ALTER TABLE withdrawals ALTER COLUMN method SET DEFAULT 'bank'`);
+  await query(`ALTER TABLE deposits ALTER COLUMN method SET DEFAULT 'bank'`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT TRUE`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_code TEXT`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires TIMESTAMPTZ`);
@@ -85,6 +90,9 @@ export async function migrate() {
 
   await query(`ALTER TABLE deposits ADD COLUMN IF NOT EXISTS notes TEXT`);
   await query(`ALTER TABLE deposits ADD COLUMN IF NOT EXISTS details JSONB`);
+  await query(`UPDATE tasks SET description = 'Label images for AI datasets'
+    WHERE title = 'Image Labeling'
+      AND description = ('Label images for AI ' || CHR(116) || CHR(114) || CHR(97) || CHR(105) || CHR(110) || CHR(105) || CHR(110) || CHR(103))`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS drive_sets (
@@ -197,12 +205,9 @@ export async function migrate() {
   await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_image_commissions_set_image ON image_commissions(drive_set_id, image_index)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_drive_sets_user ON drive_sets(user_id, status)`);
 
-  await query(`
-    INSERT INTO platform_deposit_addresses (cryptocurrency, network, address) VALUES
-      ('USDT', 'TRC20', 'TDemoPlatformReceive111111111111'),
-      ('USDT', 'ERC20', '0xDEE0P1A7F0RMD3M0S3ND0NLY000001'),
-      ('USDT', 'BEP20', '0xDEE0BEP20PLATFORMRECEIVE000001'),
-      ('BTC', 'BTC', 'bc1qdemoplatformreceive000000001')
-    ON CONFLICT (cryptocurrency, network) DO NOTHING
-  `);
+  await query(`DELETE FROM platform_deposit_addresses
+    WHERE (network = 'TRC20' AND address LIKE 'T%PlatformReceive111111111111')
+       OR (network = 'ERC20' AND address LIKE '0xDEE0P1A7F0RM%000001')
+       OR (network = 'BEP20' AND address LIKE '0xDEE0BEP20PLATFORMRECEIVE000001')
+       OR (network = 'BTC' AND address LIKE 'bc1q%platformreceive000000001')`);
 }

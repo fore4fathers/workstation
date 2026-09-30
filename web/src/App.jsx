@@ -29,6 +29,7 @@ import AdminInbox from './pages/admin/Inbox.jsx';
 import AdminProfile from './pages/admin/Profile.jsx';
 import AdminPayouts from './pages/admin/Payouts.jsx';
 import AdminWorkers from './pages/admin/Workers.jsx';
+import AdminWorkerDetail from './pages/admin/WorkerDetail.jsx';
 import AdminDriveSets from './pages/admin/DriveSets.jsx';
 
 export default function App() {
@@ -93,6 +94,7 @@ export default function App() {
           <Route path="tasks/:id" element={<TaskDetail />} />
           <Route path="payouts" element={<AdminPayouts />} />
           <Route path="workers" element={<AdminWorkers />} />
+          <Route path="workers/:id" element={<AdminWorkerDetail />} />
           <Route path="wallet" element={<AdminWallet />} />
           <Route path="deposits" element={<AdminDeposits />} />
           <Route path="drive-sets" element={<AdminDriveSets />} />
@@ -121,4 +123,3 @@ export default function App() {
     </Routes>
   );
 }
-

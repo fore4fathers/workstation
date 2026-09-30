@@ -30,6 +30,16 @@ export async function api(path, { method = 'GET', body, headers } = {}) {
   return data;
 }
 
+export async function apiBlob(path) {
+  const token = getToken();
+  const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `request failed (${res.status})`);
+  }
+  return URL.createObjectURL(await res.blob());
+}
+
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

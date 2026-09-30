@@ -235,12 +235,39 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .auth-sub { margin-bottom: 20px; }
 .check-row { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 14px; }
 .check-row input { width: auto; }
-.demo-inbox {
+.verification-hint {
   background: var(--surface);
   border: 1px dashed var(--line);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   font-size: 13px;
+}
+.worker-address-editor { display: grid; grid-template-columns: 140px minmax(220px, 1fr) auto; gap: 8px; align-items: center; min-width: 490px; }
+.worker-address-editor input, .worker-address-editor select { min-width: 0; }
+.deposit-address-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.deposit-address-heading .text-btn { width: auto; margin: 0; padding: 4px 8px; }
+.deposit-address-missing { padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--ink); }
+.wallet-address { display: block; max-width: 360px; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 12px; }
+.proof-viewer-backdrop {
+  position: fixed; inset: 0; z-index: 90; display: grid; place-items: center;
+  padding: 20px; background: rgba(15, 23, 42, .72);
+}
+.proof-viewer-card {
+  display: grid; gap: 12px; width: min(900px, 100%); max-height: 90vh; overflow: auto;
+  padding: 16px; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-float);
+}
+.proof-viewer-card > .ghost { justify-self: end; width: auto; }
+.proof-viewer-card img { display: block; max-width: 100%; max-height: 78vh; object-fit: contain; margin: 0 auto; }
+.admin-worker-account { display: grid; gap: 14px; padding: 8px 18px 24px; }
+.admin-worker-account > .section-h { margin-top: 8px; }
+.admin-account-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.admin-account-kpis .card { display: grid; gap: 6px; }
+.admin-account-kpis b { font-size: 22px; }
+.admin-account-row { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.admin-account-row:last-child { border-bottom: 0; }
+@media (max-width: 700px) {
+  .admin-account-kpis { grid-template-columns: 1fr; }
+  .admin-worker-account > .section-h { align-items: flex-start; }
 }
 .boot-overlay, .drive-overlay {
   position: fixed; inset: 0; z-index: 80;
@@ -476,20 +503,42 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 }
 .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-.drive-trainer { width: 100%; max-width: 760px; margin: 0 auto; }
+.drive-trainer { width: 100%; max-width: 980px; margin: 0 auto; }
+.drive-trainer-header { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; }
+.drive-trainer-summary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px; width: 100%; margin-top: 4px;
+}
+.drive-trainer-summary span {
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  padding: 9px 11px; border-radius: 9px; background: var(--canvas);
+  color: var(--ink-soft); font-size: 12px; line-height: 1.35;
+}
+.drive-trainer-summary b { color: var(--ink); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .drive-trainer-image-wrap {
+  position: relative;
   display: grid;
   place-items: center;
   width: 100%;
-  height: min(42svh, 420px);
+  height: auto;
+  min-height: 180px;
   margin: 10px 0 18px;
-  overflow: hidden;
   border-radius: 12px;
+  padding: 10px;
   background: #101522;
 }
-.drive-trainer-image { display: block; width: 100%; height: 100%; object-fit: contain; }
+.drive-image-loader {
+  position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 10px; color: #fff; background: rgba(16, 21, 34, .92);
+  border-radius: 12px; font-size: 14px;
+}
+.drive-trainer-image {
+  display: block; width: auto; height: auto; max-width: 100%; max-height: 68svh;
+  object-fit: contain; border-radius: 6px;
+}
 .drive-trainer-hint { margin: 8px 0 12px; }
 .drive-response-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+.drive-response-mode button { width: 100%; min-height: 46px; margin: 0; }
 .drive-trainer-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .drive-caption-option {
   min-width: 0;
@@ -511,21 +560,21 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .drive-foreign-answer { display: grid; gap: 8px; margin: 12px 0; font-weight: 600; }
 .drive-foreign-answer textarea { width: 100%; min-height: 110px; resize: vertical; font: inherit; line-height: 1.5; }
 .drive-response-feedback { padding: 10px 12px; border-radius: 8px; background: var(--ok-bg); color: var(--success); }
+.drive-submission-notice { padding: 9px 12px; border-radius: 8px; background: var(--ok-bg); color: var(--success); font-size: 13px; font-weight: 600; }
 .drive-submitted-answer { padding: 12px; border: 1px solid var(--line); border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .worker-label-set-action { min-width: 104px; }
 .worker-label-set-action button { min-height: 40px; }
+.drive-trainer .row-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.drive-trainer .row-actions > button { width: auto; min-width: 160px; margin: 0; }
 
 @media (max-width: 600px) {
   .drive-trainer { padding: 14px; }
-  .drive-trainer .section-h { display: block; }
-  .drive-trainer .section-h .meta { margin-top: 6px; line-height: 1.55; }
-  .drive-trainer-image-wrap { height: min(38svh, 320px); margin: 8px 0 14px; }
+  .drive-trainer-image-wrap { min-height: 140px; margin: 8px 0 14px; }
+  .drive-trainer-image { max-height: 46svh; }
   .drive-response-mode, .drive-trainer-options { grid-template-columns: 1fr; }
   .drive-response-mode button { width: 100%; min-height: 44px; }
   .drive-caption-option { min-height: 58px; padding: 11px 12px; font-size: 14px; }
-  .drive-trainer .row-actions { display: grid; grid-template-columns: 1fr 1fr; }
-  .drive-trainer .row-actions > button { width: 100%; min-height: 44px; }
 }
 
 .pill {
@@ -947,16 +996,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--canvas)
     gap: 4px; margin-top: 14px;
   }
   .worker-label-set-heading h2, .drive-trainer-header h2 { line-height: 1.3; }
-  .drive-trainer-summary {
-    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
-    width: 100%; margin-top: 4px;
-  }
-  .drive-trainer-summary span {
-    display: flex; flex-direction: column; gap: 2px; min-width: 0;
-    padding: 8px 10px; border-radius: 9px; background: var(--canvas);
-    color: var(--ink-soft); font-size: 12px; line-height: 1.35;
-  }
-  .drive-trainer-summary b { color: var(--ink); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+  .drive-trainer-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .drive-trainer { padding-bottom: 92px; }
   .drive-trainer .row-actions {
     position: fixed; z-index: 35; left: 0; right: 0; bottom: 0;
@@ -996,6 +1036,29 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--canvas)
 .wiz-nav { display: flex; gap: 10px; margin-top: 16px; }
 .wiz-nav .primary { width: auto; flex: 1; margin-top: 0; }
 .payin-addr { font-family: var(--font-mono); font-size: 13px; word-break: break-all; margin: 6px 0 0; }
+.deposit-page {
+  display: block;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+}
+.deposit-page > h2,
+.deposit-page > p,
+.deposit-page > label,
+.deposit-page > input,
+.deposit-page > select,
+.deposit-page > textarea,
+.deposit-page > .card,
+.deposit-page > .error { display: block; width: 100%; }
+.deposit-page > h2 { margin: 8px 0 4px; }
+.deposit-page > p { margin-top: 0; }
+.deposit-page .wiz-options { grid-template-columns: minmax(0, 1fr); }
+.deposit-page .wiz-option { display: grid; grid-template-columns: 1fr; gap: 4px; width: 100%; }
+.deposit-page .wiz-nav { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.deposit-page .wiz-nav > button { width: 100%; min-height: 48px; }
+.deposit-page .deposit-address-heading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.deposit-page .deposit-address-heading .text-btn { justify-self: start; }
+.deposit-page .payin-addr { overflow-wrap: anywhere; }
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .cal-cell {
   aspect-ratio: 1; display: grid; place-items: center; border-radius: 8px;
