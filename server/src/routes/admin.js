@@ -196,14 +196,30 @@ async function settleWithdrawal(id, action) {
         [w.id],
       );
     }
-    const { rows: done } = await client.query('SELECT * FROM withdrawals WHERE id = $1', [w.id]);
+    const { rows: done } = await client.query(
+      `SELECT w.*, u.display_name
+       FROM withdrawals w JOIN users u ON u.id = w.user_id
+       WHERE w.id = $1`,
+      [w.id],
+    );
     return { withdrawal: { ...done[0], amount: Number(done[0].amount) } };
   });
 }
 
 adminRouter.post('/withdrawals/:id/approve', async (req, res) => {
   try {
-    res.json(await settleWithdrawal(req.params.id, 'approve'));
+    const result = await settleWithdrawal(req.params.id, 'approve');
+    const notification = {
+      type: 'withdrawal_approved',
+      withdrawal_id: result.withdrawal.id,
+      user_id: result.withdrawal.user_id,
+      user_name: result.withdrawal.display_name,
+      amount: result.withdrawal.amount,
+    };
+    const io = req.app.get('io');
+    io?.to('admin').emit('withdrawal:notification', notification);
+    io?.to(`user:${result.withdrawal.user_id}`).emit('withdrawal:notification', notification);
+    res.json(result);
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }

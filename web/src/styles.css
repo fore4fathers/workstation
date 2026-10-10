@@ -27,6 +27,45 @@
 }
 
 * { box-sizing: border-box; }
+
+.withdrawal-notifications {
+  position: fixed;
+  z-index: 1000;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  gap: 10px;
+  width: min(390px, calc(100vw - 36px));
+  text-align: start;
+}
+.withdrawal-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #c9e3d2;
+  border-left: 4px solid #2f855a;
+  border-radius: 10px;
+  background: #fff;
+  color: #1b1f24;
+  box-shadow: var(--shadow-float);
+  animation: withdrawal-notice-in .18s ease-out;
+}
+.withdrawal-notice span { flex: 1; }
+.withdrawal-notice button {
+  border: 0;
+  padding: 0 2px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+@keyframes withdrawal-notice-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 html, body, #root { min-height: 100%; margin: 0; }
 body {
   font-family: var(--font-ui);

@@ -22,14 +22,10 @@ import Profile from './pages/worker/Profile.jsx';
 import Training from './pages/worker/Training.jsx';
 import Chat from './pages/worker/Chat.jsx';
 import AdminHome from './pages/admin/Home.jsx';
-import AdminTasks from './pages/admin/Tasks.jsx';
-import TaskNew from './pages/admin/TaskNew.jsx';
-import TaskDetail from './pages/admin/TaskDetail.jsx';
 import AdminWallet from './pages/admin/Wallet.jsx';
 import AdminDeposits from './pages/admin/Deposits.jsx';
 import AdminInbox from './pages/admin/Inbox.jsx';
 import AdminProfile from './pages/admin/Profile.jsx';
-import AdminPayouts from './pages/admin/Payouts.jsx';
 import AdminWorkers from './pages/admin/Workers.jsx';
 import AdminWorkerDetail from './pages/admin/WorkerDetail.jsx';
 import AdminDriveSets from './pages/admin/DriveSets.jsx';
@@ -91,10 +87,6 @@ export default function App() {
       {isAdmin ? (
         <Route path="/*" element={<AdminLayout session={session} />}>
           <Route index element={<AdminHome />} />
-          <Route path="tasks" element={<AdminTasks />} />
-          <Route path="tasks/new" element={<TaskNew />} />
-          <Route path="tasks/:id" element={<TaskDetail />} />
-          <Route path="payouts" element={<AdminPayouts />} />
           <Route path="workers" element={<AdminWorkers />} />
           <Route path="workers/:id" element={<AdminWorkerDetail />} />
           <Route path="wallet" element={<AdminWallet />} />

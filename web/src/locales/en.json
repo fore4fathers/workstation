@@ -480,5 +480,9 @@
   "Telegram customer support": "Telegram customer support",
   "Set the Telegram contact shown to workers.": "Set the Telegram contact shown to workers.",
   "Telegram username or link": "Telegram username or link",
-  "Save contact": "Save contact"
+  "Save contact": "Save contact",
+  "notifications.withdrawalRequested": "{name} requested a withdrawal of {amount}.",
+  "notifications.withdrawalSubmitted": "Your withdrawal request for {amount} was submitted.",
+  "notifications.withdrawalApprovedAdmin": "{name}'s withdrawal of {amount} was approved.",
+  "notifications.withdrawalApprovedWorker": "Your withdrawal request for {amount} was approved."
 }

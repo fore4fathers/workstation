@@ -204,6 +204,19 @@ walletRouter.post('/withdraw', async (req, res) => {
         },
       };
     });
+    const notification = {
+      type: 'withdrawal_requested',
+      withdrawal_id: result.withdrawal.id,
+      user_id: req.user.id,
+      user_name: req.user.display_name,
+      amount: result.withdrawal.amount,
+    };
+    const io = req.app.get('io');
+    io?.to('admin').emit('withdrawal:notification', notification);
+    io?.to(`user:${req.user.id}`).emit('withdrawal:notification', {
+      ...notification,
+      type: 'withdrawal_submitted',
+    });
     res.json(result);
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || 'withdraw failed' });

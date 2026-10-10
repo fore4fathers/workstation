@@ -480,5 +480,9 @@
   "Telegram customer support": "دعم العملاء عبر تيليجرام",
   "Set the Telegram contact shown to workers.": "حدد جهة اتصال تيليجرام التي ستظهر للعاملين.",
   "Telegram username or link": "اسم مستخدم تيليجرام أو رابطه",
-  "Save contact": "حفظ جهة الاتصال"
+  "Save contact": "حفظ جهة الاتصال",
+  "notifications.withdrawalRequested": "طلب {name} سحب {amount}.",
+  "notifications.withdrawalSubmitted": "تم إرسال طلب السحب بمبلغ {amount}.",
+  "notifications.withdrawalApprovedAdmin": "تمت الموافقة على طلب سحب {name} بمبلغ {amount}.",
+  "notifications.withdrawalApprovedWorker": "تمت الموافقة على طلب السحب الخاص بك بمبلغ {amount}."
 }

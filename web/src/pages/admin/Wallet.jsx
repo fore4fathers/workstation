@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
 import { money, when } from '../../format.js';
+import { getSocket } from '../../socket.js';
 
 export default function AdminWallet() {
   const { t } = useLanguage();
@@ -18,6 +19,12 @@ export default function AdminWallet() {
 
   useEffect(() => {
     load().catch((err) => setError(err.message));
+    const socket = getSocket();
+    const onNotification = (notification) => {
+      if (notification?.type === 'withdrawal_requested') load().catch((err) => setError(err.message));
+    };
+    socket?.on('withdrawal:notification', onNotification);
+    return () => socket?.off('withdrawal:notification', onNotification);
   }, []);
 
   async function act(id, action) {

@@ -2,11 +2,10 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { logout } from '../session.js';
 import { useCompactHeader } from '../useCompactHeader.js';
 import { LanguageToggle, useLanguage } from '../i18n.jsx';
+import WithdrawalNotifications from '../WithdrawalNotifications.jsx';
 
 const links = [
   { to: '/', label: 'Home', key: 'admin.home', end: true },
-  { to: '/tasks', label: 'Tasks', key: 'admin.tasks' },
-  { to: '/payouts', label: 'Payouts', key: 'admin.payouts' },
   { to: '/wallet', label: 'Withdrawals', key: 'admin.withdrawals' },
   { to: '/deposits', label: 'Deposits', key: 'admin.deposits' },
   { to: '/workers', label: 'Workers', key: 'admin.workers' },
@@ -23,6 +22,7 @@ export default function AdminLayout({ session }) {
 
   return (
     <div className={`admin-shell${compact ? ' is-compact' : ''}`}>
+      <WithdrawalNotifications session={session} />
       <header className="site-nav admin-nav-bar">
         <NavLink to="/" end className="brand es-brand">
           <img src="/engagesphere-logo.png" alt="" />
