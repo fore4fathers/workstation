@@ -1,3 +1,5 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
@@ -13,6 +15,7 @@ const METHODS = [
 ];
 
 export default function Wallet() {
+  const { t: trText } = useLanguage();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [formErr, setFormErr] = useState('');
@@ -87,36 +90,36 @@ export default function Wallet() {
   return (
     <>
       <div className="topbar">
-        <Link className="icon-btn" to="/" aria-label="Back"><IconBack /></Link>
-        <h1>Wallet</h1>
+        <Link className="icon-btn" to="/" aria-label={trText("Back")}><IconBack /></Link>
+        <h1><LocalizedText source={"Wallet"} /></h1>
         <span />
       </div>
       <div className="page tm-dash">
         <header className="dash-head">
-          <h1>Earnings</h1>
-          <p>Available balance, deposits, and withdrawals.</p>
+          <h1><LocalizedText source={"Earnings"} /></h1>
+          <p><LocalizedText source={"Available balance, deposits, and withdrawals."} /></p>
         </header>
         {error ? <p className="error">{error}</p> : null}
         <div className="landing-ctas" style={{ marginBottom: 16 }}>
-          <Link className="primary small" to="/wallet/deposit">Cash in</Link>
-          <Link className="ghost" to="/wallet/withdraw">Cash out</Link>
+          <Link className="primary small" to="/wallet/deposit"><LocalizedText source={"Cash in"} /></Link>
+          <Link className="ghost" to="/wallet/withdraw"><LocalizedText source={"Cash out"} /></Link>
         </div>
         <div className="dash-kpis">
           <div className="dash-kpi">
             <div>
-              <div className="meta">Available</div>
+              <div className="meta"><LocalizedText source={"Available"} /></div>
               <div className="dash-kpi-n">{money(acct.balance)}</div>
             </div>
           </div>
           <div className="dash-kpi">
             <div>
-              <div className="meta">Pending</div>
+              <div className="meta"><LocalizedText source={"Pending"} /></div>
               <div className="dash-kpi-n">{money(acct.pending)}</div>
             </div>
           </div>
           <div className="dash-kpi">
             <div>
-              <div className="meta">On hold</div>
+              <div className="meta"><LocalizedText source={"On hold"} /></div>
               <div className="dash-kpi-n">{money(acct.frozen)}</div>
             </div>
           </div>
@@ -126,56 +129,54 @@ export default function Wallet() {
 
         <div className="dash-grid">
           <div className="card">
-            <h2>Deposit</h2>
-            <p className="meta">Choose how to deposit and attach a transfer screenshot when requested.</p>
-            <Link className="primary small" to="/wallet/deposit">Start deposit</Link>
+            <h2><LocalizedText source={"Deposit"} /></h2>
+            <p className="meta"><LocalizedText source={"Choose how to deposit and attach a transfer screenshot when requested."} /></p>
+            <Link className="primary small" to="/wallet/deposit"><LocalizedText source={"Start deposit"} /></Link>
           </div>
 
           <form className="card" onSubmit={onWithdraw}>
-            <h2>Withdraw</h2>
-            <label htmlFor="amount">Amount</label>
+            <h2><LocalizedText source={"Withdraw"} /></h2>
+            <label htmlFor="amount"><LocalizedText source={"Amount"} /></label>
             <input id="amount" name="amount" type="number" step="0.01" min="0.01" required />
-            <label htmlFor="wd_method">Method</label>
+            <label htmlFor="wd_method"><LocalizedText source={"Method"} /></label>
             <select id="wd_method" value={wdMethod} onChange={(e) => setWdMethod(e.target.value)}>
               {METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
             {methodMeta?.crypto ? (
               <>
-                <label htmlFor="address_id">Address</label>
+                <label htmlFor="address_id"><LocalizedText source={"Address"} /></label>
                 <select id="address_id" name="address_id" required={addrs.length > 0}>
                   {addrs.map((a) => (
                     <option key={a.id} value={a.id}>{a.label || a.address}</option>
                   ))}
                 </select>
-                {!addrs.length ? <p className="meta">Save an address first.</p> : null}
+                {!addrs.length ? <p className="meta"><LocalizedText source={"Save an address first."} /></p> : null}
               </>
             ) : (
               <>
-                <label htmlFor="address">Memo</label>
-                <input id="address" name="address" placeholder="optional" />
+                <label htmlFor="address"><LocalizedText source={"Memo"} /></label>
+                <input id="address" name="address" placeholder={trText("optional")} />
               </>
             )}
             <button className="primary" type="submit" disabled={busy}>
-              {busy ? <Spinner size={18} /> : null}
-              Request
-            </button>
+              {busy ? <Spinner size={18} /> : null}<LocalizedText source={"Request"} /></button>
           </form>
         </div>
 
         <form className="card" style={{ marginTop: 16 }} onSubmit={onAddress}>
-          <h2>Crypto addresses</h2>
-          <label htmlFor="pair">Network</label>
+          <h2><LocalizedText source={"Crypto addresses"} /></h2>
+          <label htmlFor="pair"><LocalizedText source={"Network"} /></label>
           <select id="pair" name="pair">
-            <option value="USDT:TRC20">USDT · TRC20</option>
-            <option value="USDT:ERC20">USDT · ERC20</option>
-            <option value="USDT:BEP20">USDT · BEP20</option>
+            <option value="USDT:TRC20"><LocalizedText source={"USDT · TRC20"} /></option>
+            <option value="USDT:ERC20"><LocalizedText source={"USDT · ERC20"} /></option>
+            <option value="USDT:BEP20"><LocalizedText source={"USDT · BEP20"} /></option>
             <option value="BTC:BTC">BTC</option>
           </select>
-          <label htmlFor="new_address">Address</label>
+          <label htmlFor="new_address"><LocalizedText source={"Address"} /></label>
           <input id="new_address" name="new_address" required />
-          <label htmlFor="label">Label</label>
-          <input id="label" name="label" placeholder="Main" />
-          <button className="primary" type="submit" disabled={busy}>Save address</button>
+          <label htmlFor="label"><LocalizedText source={"Label"} /></label>
+          <input id="label" name="label" placeholder={trText("Main")} />
+          <button className="primary" type="submit" disabled={busy}><LocalizedText source={"Save address"} /></button>
           {(data?.addresses || []).map((a) => (
             <div key={a.id} className="task-card" style={{ marginTop: 10 }}>
               <div className="grow">
@@ -186,30 +187,30 @@ export default function Wallet() {
           ))}
         </form>
 
-        <h2 className="section-title">Deposits</h2>
+        <h2 className="section-title"><LocalizedText source={"Deposits"} /></h2>
         {(data?.deposits || []).map((d) => (
           <div key={d.id} className="task-card">
             <div className="grow">
               <b>{money(d.amount)}</b>
               <div className="meta">{paymentMethodLabel(d.method)} · {when(d.created_at)}</div>
             </div>
-            <span className={`pill ${d.status.toLowerCase()}`}>{d.status}</span>
+            <span className={`pill ${d.status.toLowerCase()}`}>{trText(d.status, d.status)}</span>
           </div>
         ))}
-        {data && !data.deposits.length ? <p className="meta">None yet.</p> : null}
+        {data && !data.deposits.length ? <p className="meta"><LocalizedText source={"None yet."} /></p> : null}
 
-        <h2 className="section-title">Withdrawals</h2>
+        <h2 className="section-title"><LocalizedText source={"Withdrawals"} /></h2>
         {(data?.withdrawals || []).map((w) => (
           <div key={w.id} className="task-card">
             <div className="grow">
               <b>{money(w.amount)}</b>
-              <div className="meta">{paymentMethodLabel(w.method)} · {w.status} · {when(w.created_at)}</div>
+              <div className="meta">{paymentMethodLabel(w.method)} · {trText(w.status, w.status)} · {when(w.created_at)}</div>
             </div>
-            <span className={`pill ${w.status.toLowerCase()}`}>{w.status}</span>
+            <span className={`pill ${w.status.toLowerCase()}`}>{trText(w.status, w.status)}</span>
           </div>
         ))}
 
-        <h2 className="section-title">Ledger</h2>
+        <h2 className="section-title"><LocalizedText source={"Ledger"} /></h2>
         {(data?.ledger || []).map((l) => (
           <div key={l.id} className="task-card">
             <div className="grow">

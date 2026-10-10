@@ -1,14 +1,20 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.js';
 import { getSocket } from '../../socket.js';
 import { mergeMessage } from '../../chat.js';
 
 export default function AdminInbox() {
+  const { t: trText } = useLanguage();
   const [conversations, setConversations] = useState([]);
   const [current, setCurrent] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [error, setError] = useState('');
+  const [supportContact, setSupportContact] = useState('https://t.me/aiworkstation_support');
+  const [supportBusy, setSupportBusy] = useState(false);
+  const [supportError, setSupportError] = useState('');
   const logRef = useRef(null);
   const currentRef = useRef(null);
 
@@ -28,6 +34,9 @@ export default function AdminInbox() {
   }
 
   useEffect(() => {
+    api('/api/admin/support-contact')
+      .then((data) => setSupportContact(data.contact || ''))
+      .catch((err) => setSupportError(err.message));
     let socket;
     loadList()
       .then((list) => {
@@ -51,6 +60,23 @@ export default function AdminInbox() {
       if (socket) socket.off('message:new', onNew);
     };
   }, []);
+
+  async function saveSupportContact(e) {
+    e.preventDefault();
+    setSupportBusy(true);
+    setSupportError('');
+    try {
+      const data = await api('/api/admin/support-contact', {
+        method: 'PUT',
+        body: { contact: supportContact },
+      });
+      setSupportContact(data.contact);
+    } catch (err) {
+      setSupportError(err.message);
+    } finally {
+      setSupportBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -76,6 +102,23 @@ export default function AdminInbox() {
   return (
     <>
       {error ? <p className="error">{error}</p> : null}
+      <form className="card" onSubmit={saveSupportContact} style={{ marginBottom: 18 }}>
+        <h2><LocalizedText source={"Telegram customer support"} /></h2>
+        <p className="meta"><LocalizedText source={"Set the Telegram contact shown to workers."} /></p>
+        <label htmlFor="telegram-support-contact"><LocalizedText source={"Telegram username or link"} /></label>
+        <div className="row">
+          <input
+            id="telegram-support-contact"
+            value={supportContact}
+            onChange={(e) => setSupportContact(e.target.value)}
+            placeholder="https://t.me/your_support"
+          />
+          <button className="primary small" type="submit" disabled={supportBusy}>
+            {supportBusy ? <LocalizedText source={"Saving..."} /> : <LocalizedText source={"Save contact"} />}
+          </button>
+        </div>
+        {supportError ? <p className="error">{supportError}</p> : null}
+      </form>
       <div className="card inbox">
         <div className="list">
           {conversations.map((c) => (
@@ -90,7 +133,7 @@ export default function AdminInbox() {
               <div className="meta">{c.last_message || ''}</div>
             </button>
           ))}
-          {!conversations.length ? <p className="meta" style={{ padding: 12 }}>No conversations</p> : null}
+          {!conversations.length ? <p className="meta" style={{ padding: 12 }}><LocalizedText source={"No conversations"} /></p> : null}
         </div>
         <div>
           <div className="chat-log admin-log" ref={logRef}>
@@ -102,11 +145,11 @@ export default function AdminInbox() {
             <form className="chat-input static" onSubmit={send}>
               <input
                 name="content"
-                placeholder="Reply"
+                placeholder={trText("Reply")}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
               />
-              <button className="primary small" type="submit">Send</button>
+              <button className="primary small" type="submit"><LocalizedText source={"Send"} /></button>
             </form>
           ) : null}
         </div>

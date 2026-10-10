@@ -1,8 +1,11 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 import { money, when } from '../../format.js';
 
 export default function WorkerDriveSets() {
+  const { t: trText } = useLanguage();
   const [sets, setSets] = useState([]);
   const [activeSet, setActiveSet] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -135,40 +138,38 @@ export default function WorkerDriveSets() {
         <div className="section-h drive-trainer-header">
           <h2>{activeSet.title}</h2>
           <div className="drive-trainer-summary">
-            <span>Image <b>{currentIndex + 1} of {activeSet.items.length}</b></span>
-            <span>Progress <b>{answeredCount} answered</b></span>
-            <span>Closest match <b>{money(Number(activeSet.commission_cents ?? 50) / 100)}</b></span>
-            <span>Alternative <b>{money(Number(activeSet.alternative_commission_cents ?? 25) / 100)}</b></span>
-            <span>Other language <b>{money(Number(activeSet.foreign_commission_cents ?? activeSet.commission_cents ?? 50) / 100)}</b></span>
-            <span>Earned <b>{money(earned)}</b></span>
+            <span><LocalizedText source={"Image"} />{' '}<b>{currentIndex + 1}{' '}<LocalizedText source={"of"} />{' '}{activeSet.items.length}</b></span>
+            <span><LocalizedText source={"Progress"} />{' '}<b>{answeredCount}{' '}<LocalizedText source={"answered"} /></b></span>
+            <span><LocalizedText source={"Closest match"} />{' '}<b>{money(Number(activeSet.commission_cents ?? 50) / 100)}</b></span>
+            <span><LocalizedText source={"Alternative"} />{' '}<b>{money(Number(activeSet.alternative_commission_cents ?? 25) / 100)}</b></span>
+            <span><LocalizedText source={"Other language"} />{' '}<b>{money(Number(activeSet.foreign_commission_cents ?? activeSet.commission_cents ?? 50) / 100)}</b></span>
+            <span><LocalizedText source={"Earned"} />{' '}<b>{money(earned)}</b></span>
           </div>
         </div>
         {submissionNotice ? <p className="drive-submission-notice" role="status">{submissionNotice}</p> : null}
         <div className="drive-trainer-image-wrap">
           {imageLoading ? <div className="drive-image-loader" role="status" aria-live="polite">
             <span className="spinner" style={{ width: 32, height: 32 }} />
-            <span>Loading image…</span>
+            <span><LocalizedText source={"Loading image…"} /></span>
           </div> : null}
           <img key={`${activeSet.id}:${item.image_index}`} className="drive-trainer-image" src={item.image_url}
-            alt="Image labeling item" onLoad={() => setImageLoading(false)} onError={() => setImageLoading(false)} />
+            alt={trText("Image labeling item")} onLoad={() => setImageLoading(false)} onError={() => setImageLoading(false)} />
         </div>
         <h3>{activeSet.civitai_backed
-          ? 'Which generation caption best matches this image?'
-          : 'What is in this image?'}</h3>
-        <p className="meta drive-trainer-hint">Every response earns a reward. The closest caption earns the highest rate; an answer in another language is accepted too.</p>
+          ? (<LocalizedText source={"Which generation caption best matches this image?"} />)
+          : (<LocalizedText source={"What is in this image?"} />)}</h3>
+        <p className="meta drive-trainer-hint"><LocalizedText source={"Every response earns a reward. The closest caption earns the highest rate; an answer in another language is accepted too."} /></p>
         <div className="drive-response-mode">
           <button type="button" className={foreignMode ? 'ghost' : 'primary'} disabled={busy || imageLoading || hasAnswer || complete}
-            onClick={() => { setForeignMode(false); setForeignResponse(''); }}>Choose a caption</button>
+            onClick={() => { setForeignMode(false); setForeignResponse(''); }}><LocalizedText source={"Choose a caption"} /></button>
           <button type="button" className={foreignMode ? 'primary' : 'ghost'} disabled={busy || imageLoading || hasAnswer || complete}
-            onClick={() => { setForeignMode(true); setSelectedOption(null); }}>Respond in another language</button>
+            onClick={() => { setForeignMode(true); setSelectedOption(null); }}><LocalizedText source={"Respond in another language"} /></button>
         </div>
         {hasAnswer && item.response_type === 'foreign_language' ? (
           <div className="drive-submitted-answer">{item.selected_label}</div>
         ) : foreignMode && !hasAnswer ? (
-          <label className="drive-foreign-answer">
-            Your response in another language
-            <textarea value={foreignResponse} onChange={(e) => setForeignResponse(e.target.value)} rows={4}
-              maxLength={4000} placeholder="Describe what you see in any language" disabled={busy || imageLoading || complete} />
+          <label className="drive-foreign-answer"><LocalizedText source={"Your response in another language"} /><textarea value={foreignResponse} onChange={(e) => setForeignResponse(e.target.value)} rows={4}
+              maxLength={4000} placeholder={trText("Describe what you see in any language")} disabled={busy || imageLoading || complete} />
           </label>
         ) : !foreignMode ? (
           <div className="drive-trainer-options">
@@ -182,9 +183,8 @@ export default function WorkerDriveSets() {
           </div>
         ) : null}
         {hasAnswer && <p className="drive-response-feedback">
-          {item.response_type === 'best_match' ? 'Closest caption' : item.response_type === 'foreign_language' ? 'Other-language response' : 'Alternative useful caption'}
-          {' · '}{money(Number(item.commission_cents || 0) / 100)} reward earned
-        </p>}
+          {item.response_type === 'best_match' ? (<LocalizedText source={"Closest caption"} />) : item.response_type === 'foreign_language' ? (<LocalizedText source={"Other-language response"} />) : (<LocalizedText source={"Alternative useful caption"} />)}
+          {' · '}{money(Number(item.commission_cents || 0) / 100)}{' '}<LocalizedText source={"reward earned"} /></p>}
         {error ? <p className="error">{error}</p> : null}
         <div className={`row-actions${currentIndex === 0 ? ' single-action' : ''}`}>
           {currentIndex > 0 ? <button className="ghost" disabled={busy || imageLoading} onClick={() => {
@@ -193,22 +193,22 @@ export default function WorkerDriveSets() {
             setSelectedOption(null);
             setForeignMode(false);
             setForeignResponse('');
-          }}>Back</button> : null}
+          }}><LocalizedText source={"Back"} /></button> : null}
           {!hasAnswer && !complete ? (
             <button className="primary" disabled={busy || (foreignMode ? !foreignResponse.trim() : selectedOption == null)} onClick={submitAnswer}>
-              {busy ? 'Submitting...' : 'Submit response'}
+              {busy ? (<LocalizedText source={"Submitting..."} />) : (<LocalizedText source={"Submit response"} />)}
             </button>
           ) : currentIndex < activeSet.items.length - 1 ? (
-            <button className="primary" disabled={busy} onClick={advance}>Next image</button>
+            <button className="primary" disabled={busy} onClick={advance}><LocalizedText source={"Next image"} /></button>
           ) : complete ? (
-            <button className="ghost" onClick={() => setActiveSet(null)}>Back to sets</button>
+            <button className="ghost" onClick={() => setActiveSet(null)}><LocalizedText source={"Back to sets"} /></button>
           ) : (
             <button className="primary" disabled={busy || answeredCount < activeSet.total_items} onClick={advance}>
-              {busy ? 'Completing...' : 'Complete set'}
+              {busy ? (<LocalizedText source={"Completing..."} />) : (<LocalizedText source={"Complete set"} />)}
             </button>
           )}
         </div>
-        {complete && <p className="meta" style={{ color: 'green' }}>Set completed. Commission earned: {money(earned)}.</p>}
+        {complete && <p className="meta" style={{ color: 'green' }}><LocalizedText source={"Set completed. Commission earned:"} />{' '}{money(earned)}.</p>}
       </div>
     );
   }
@@ -216,30 +216,30 @@ export default function WorkerDriveSets() {
   return (
     <>
       <div className="section-h worker-label-set-heading">
-        <h2>My Label Sets</h2>
-        <p className="meta">Every response earns a reward. The closest match earns more, and other-language responses are accepted.</p>
+        <h2><LocalizedText source={"My Label Sets"} /></h2>
+        <p className="meta"><LocalizedText source={"Every response earns a reward. The closest match earns more, and other-language responses are accepted."} /></p>
       </div>
       {error ? <p className="error">{error}</p> : null}
       <div className="card worker-label-sets">
         <table className="table worker-label-set-table">
-          <thead><tr><th>Task</th><th>Status</th><th>Progress</th><th>Commission earned</th><th>Assigned</th><th /></tr></thead>
+          <thead><tr><th><LocalizedText source={"Task"} /></th><th><LocalizedText source={"Status"} /></th><th><LocalizedText source={"Progress"} /></th><th><LocalizedText source={"Commission earned"} /></th><th><LocalizedText source={"Assigned"} /></th><th /></tr></thead>
           <tbody>
             {sets.map((set) => (
               <tr key={set.id}>
-                <td data-label="Task">{set.title}</td>
-                <td data-label="Status"><span className={`pill ${set.status}`}>{set.status}</span></td>
-                <td data-label="Progress">{set.answered_count || 0} / {set.total_items} answered · {set.best_match_count || 0} closest</td>
-                <td data-label="Commission earned" className="money">{money(Number(set.total_commission || 0) / 100)}</td>
-                <td data-label="Assigned">{when(set.assigned_at)}</td>
-                <td data-label="Action" className="worker-label-set-action">{set.status === 'active'
-                  ? <button className="primary" onClick={() => startSet(set.id)}>{set.answered_count ? 'Continue' : 'Start'}</button>
-                  : <span className="meta">Completed</span>}
+                <td data-label={trText("Task")}>{set.title}</td>
+                <td data-label={trText("Status")}><span className={`pill ${set.status}`}>{set.status}</span></td>
+                <td data-label={trText("Progress")}>{set.answered_count || 0} / {set.total_items}{' '}<LocalizedText source={"answered ·"} />{' '}{set.best_match_count || 0}{' '}<LocalizedText source={"closest"} /></td>
+                <td data-label={trText("Commission earned")} className="money">{money(Number(set.total_commission || 0) / 100)}</td>
+                <td data-label={trText("Assigned")}>{when(set.assigned_at)}</td>
+                <td data-label={trText("Action")} className="worker-label-set-action">{set.status === 'active'
+                  ? <button className="primary" onClick={() => startSet(set.id)}>{set.answered_count ? (<LocalizedText source={"Continue"} />) : (<LocalizedText source={"Start"} />)}</button>
+                  : <span className="meta"><LocalizedText source={"Completed"} /></span>}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {!sets.length && <p className="meta">No label sets assigned to you.</p>}
+        {!sets.length && <p className="meta"><LocalizedText source={"No label sets assigned to you."} /></p>}
       </div>
     </>
   );

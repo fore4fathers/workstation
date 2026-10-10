@@ -1,3 +1,4 @@
+import { useLanguage } from './i18n.jsx';
 export function Overlay({ title, sub }) {
   return (
     <div className="drive-overlay">
@@ -11,12 +12,13 @@ export function Overlay({ title, sub }) {
 }
 
 export function Spinner({ size = 20 }) {
+  const { t: trText } = useLanguage();
   return (
     <span
       className="spinner"
       style={{ width: size, height: size }}
       role="status"
-      aria-label="Loading"
+      aria-label={trText("Loading")}
     />
   );
 }

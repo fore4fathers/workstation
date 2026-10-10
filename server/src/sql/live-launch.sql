@@ -2,6 +2,15 @@
 -- These statements are safe to rerun; the app's migrate() also applies them.
 BEGIN;
 
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+INSERT INTO app_settings (key, value)
+VALUES ('telegram_support_contact', 'https://t.me/aiworkstation_support')
+ON CONFLICT (key) DO NOTHING;
+
 ALTER TABLE users ADD COLUMN IF NOT EXISTS deposit_address TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS deposit_cryptocurrency TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS deposit_network TEXT;

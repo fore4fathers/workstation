@@ -8,6 +8,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export async function migrate() {
   const schema = fs.readFileSync(path.join(here, 'schema.sql'), 'utf8');
   await query(schema);
+  await query(`
+    INSERT INTO app_settings (key, value)
+    VALUES ('telegram_support_contact', 'https://t.me/aiworkstation_support')
+    ON CONFLICT (key) DO NOTHING
+  `);
 
   await query(`
     ALTER TABLE accounts

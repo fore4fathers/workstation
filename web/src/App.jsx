@@ -1,3 +1,4 @@
+import { LocalizedText } from './i18n.jsx';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { api, getToken, setToken } from './api.js';
@@ -18,6 +19,7 @@ import Account from './pages/worker/Account.jsx';
 import CheckIn from './pages/worker/CheckIn.jsx';
 import DriveSets from './pages/worker/DriveSets.jsx';
 import Profile from './pages/worker/Profile.jsx';
+import Training from './pages/worker/Training.jsx';
 import Chat from './pages/worker/Chat.jsx';
 import AdminHome from './pages/admin/Home.jsx';
 import AdminTasks from './pages/admin/Tasks.jsx';
@@ -61,7 +63,7 @@ export default function App() {
       <div className="boot-overlay">
         <div className="boot-card">
           <span className="spinner" style={{ width: 36, height: 36 }} />
-          <p>Loading workspace</p>
+          <p><LocalizedText source={"Loading workspace"} /></p>
         </div>
       </div>
     );
@@ -116,6 +118,7 @@ export default function App() {
           <Route path="account" element={<Account session={session} />} />
           <Route path="check-in" element={<CheckIn />} />
           <Route path="profile" element={<Profile session={session} />} />
+          <Route path="training" element={<Training />} />
           <Route path="chat" element={<Chat session={session} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

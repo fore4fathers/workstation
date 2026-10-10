@@ -5,6 +5,14 @@ import { requireAuth } from '../middleware/requireAuth.js';
 export const chatRouter = Router();
 chatRouter.use(requireAuth);
 
+chatRouter.get('/support-contact', async (req, res) => {
+  if (req.user.role !== 'worker') return res.status(403).json({ error: 'forbidden' });
+  const { rows } = await query(
+    `SELECT value FROM app_settings WHERE key = 'telegram_support_contact'`,
+  );
+  res.json({ contact: rows[0]?.value || 'https://t.me/aiworkstation_support' });
+});
+
 async function getOrCreateConversation(workerId) {
   const { rows } = await query(
     `INSERT INTO conversations (worker_id)

@@ -1,3 +1,4 @@
+import { LocalizedText } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
@@ -39,10 +40,10 @@ export default function AdminHome() {
         ))}
       </div>
       <div className="card">
-        <h3>Recent submissions</h3>
+        <h3><LocalizedText source={"Recent submissions"} /></h3>
         <table className="table">
           <thead>
-            <tr><th>Worker</th><th>Task</th><th>Payout</th><th>When</th></tr>
+            <tr><th><LocalizedText source={"Worker"} /></th><th><LocalizedText source={"Task"} /></th><th><LocalizedText source={"Payout"} /></th><th><LocalizedText source={"When"} /></th></tr>
           </thead>
           <tbody>
             {recent.map((r) => (
@@ -55,7 +56,7 @@ export default function AdminHome() {
             ))}
           </tbody>
         </table>
-        {!recent.length ? <p className="meta">None yet</p> : null}
+        {!recent.length ? <p className="meta"><LocalizedText source={"None yet"} /></p> : null}
       </div>
     </>
   );

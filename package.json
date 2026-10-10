@@ -6,6 +6,7 @@
     "dev": "node scripts/dev.js",
     "build": "npm run build -w web",
     "start": "npm run build && node server/src/index.js",
+    "translate:ar": "node scripts/translate-arabic.mjs",
     "seed": "node server/src/sql/seed.js",
     "demo": "bash demo.sh",
     "test": "npm test -w server"

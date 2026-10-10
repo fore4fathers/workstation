@@ -1,9 +1,12 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
 import { money, when } from '../../format.js';
 
 export default function AdminWallet() {
+  const { t } = useLanguage();
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(null);
@@ -32,12 +35,12 @@ export default function AdminWallet() {
 
   return (
     <>
-      <h2>Withdrawals</h2>
+      <h2><LocalizedText source={"Withdrawals"} /></h2>
       {error ? <p className="error">{error}</p> : null}
       <div className="card">
         <table className="table">
           <thead>
-            <tr><th>User</th><th>Amount</th><th>Withdrawal wallet</th><th>Status</th><th>When</th><th>Account</th><th /></tr>
+            <tr><th><LocalizedText source={"User"} /></th><th><LocalizedText source={"Amount"} /></th><th><LocalizedText source={"Withdrawal wallet"} /></th><th><LocalizedText source={"Status"} /></th><th><LocalizedText source={"When"} /></th><th><LocalizedText source={"Account"} /></th><th /></tr>
           </thead>
           <tbody>
             {(rows || []).map((w) => (
@@ -45,18 +48,14 @@ export default function AdminWallet() {
                 <td>{w.display_name}<div className="meta">{w.email}</div></td>
                 <td className="money">{money(w.amount)}</td>
                 <td><span className="wallet-address">{w.address || '—'}</span></td>
-                <td><span className={`pill ${w.status.toLowerCase()}`}>{w.status}</span></td>
+                <td><span className={`pill ${w.status.toLowerCase()}`}>{t(w.status, w.status)}</span></td>
                 <td>{when(w.created_at)}</td>
-                <td><Link className="ghost small" to={`/workers/${w.user_id}`}>Open account</Link></td>
+                <td><Link className="ghost small" to={`/workers/${w.user_id}`}><LocalizedText source={"Open account"} /></Link></td>
                 <td className="row-actions">
                   {w.status === 'PENDING' ? (
                     <>
-                      <button type="button" className="primary small" disabled={!!busy} onClick={() => act(w.id, 'approve')}>
-                        Approve
-                      </button>
-                      <button type="button" className="ghost" disabled={!!busy} onClick={() => act(w.id, 'reject')}>
-                        Reject
-                      </button>
+                      <button type="button" className="primary small" disabled={!!busy} onClick={() => act(w.id, 'approve')}><LocalizedText source={"Approve"} /></button>
+                      <button type="button" className="ghost" disabled={!!busy} onClick={() => act(w.id, 'reject')}><LocalizedText source={"Reject"} /></button>
                     </>
                   ) : null}
                 </td>
@@ -64,7 +63,7 @@ export default function AdminWallet() {
             ))}
           </tbody>
         </table>
-        {rows && !rows.length ? <p className="meta">No withdrawals.</p> : null}
+        {rows && !rows.length ? <p className="meta"><LocalizedText source={"No withdrawals."} /></p> : null}
       </div>
     </>
   );

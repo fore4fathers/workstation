@@ -1,11 +1,15 @@
+import { LocalizedText } from '../i18n.jsx';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, setToken } from '../api.js';
 import { connectSocket } from '../socket.js';
 import { Spinner } from '../ui.jsx';
 import AuthLayout from '../layouts/AuthLayout.jsx';
+import { useLanguage } from '../i18n.jsx';
 
 export default function SignIn({ onLogin }) {
+  const { t: trText } = useLanguage();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -79,13 +83,13 @@ export default function SignIn({ onLogin }) {
 
   if (forgot === true) {
     return (
-      <AuthLayout title="Reset password" subtitle="Enter the email on the account.">
+      <AuthLayout title={trText("Reset password")} subtitle="Enter the email on the account.">
         <form onSubmit={sendReset}>
-          <label htmlFor="email">Email</label>
+          <label htmlFor="email"><LocalizedText source={"Email"} /></label>
           <input id="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
           {error ? <p className="error">{error}</p> : null}
-          <button className="primary" type="submit" disabled={busy}>{busy ? <Spinner size={18} /> : null} Send code</button>
-          <button type="button" className="text-btn" onClick={() => setForgot(false)}>Back</button>
+          <button className="primary" type="submit" disabled={busy}>{busy ? <Spinner size={18} /> : null}{' '}<LocalizedText source={"Send code"} /></button>
+          <button type="button" className="text-btn" onClick={() => setForgot(false)}><LocalizedText source={"Back"} /></button>
         </form>
       </AuthLayout>
     );
@@ -93,52 +97,49 @@ export default function SignIn({ onLogin }) {
 
   if (forgot === 'code') {
     return (
-      <AuthLayout title="Enter code" subtitle="Check your inbox for a 6-digit code.">
-        {devCode ? <p className="verification-hint">Verification code: <b>{devCode}</b></p> : null}
+      <AuthLayout title={trText("Enter code")} subtitle="Check your inbox for a 6-digit code.">
+        {devCode ? <p className="verification-hint"><LocalizedText source={"Verification code:"} />{' '}<b>{devCode}</b></p> : null}
         <form onSubmit={doReset}>
-          <label htmlFor="code">Code</label>
+          <label htmlFor="code"><LocalizedText source={"Code"} /></label>
           <input id="code" value={resetCode} onChange={(e) => setResetCode(e.target.value)} maxLength={6} required />
-          <label htmlFor="np">New password</label>
+          <label htmlFor="np"><LocalizedText source={"New password"} /></label>
           <input id="np" type="password" value={resetPass} onChange={(e) => setResetPass(e.target.value)} minLength={8} required />
           {error ? <p className="error">{error}</p> : null}
-          <button className="primary" type="submit" disabled={busy}>Update password</button>
-          <button type="button" className="text-btn" onClick={() => setForgot(false)}>Back</button>
+          <button className="primary" type="submit" disabled={busy}><LocalizedText source={"Update password"} /></button>
+          <button type="button" className="text-btn" onClick={() => setForgot(false)}><LocalizedText source={"Back"} /></button>
         </form>
       </AuthLayout>
     );
   }
 
   return (
-    <AuthLayout title="Sign in" subtitle="Use your work email.">
+    <AuthLayout title={trText("Sign in")} subtitle="Use your work email.">
       <form onSubmit={onSubmit}>
-        <label htmlFor="email">Email</label>
+        <label htmlFor="email">{t('auth.email')}</label>
         <input id="email" name="email" type="email" defaultValue={email} autoComplete="username" required />
-        <label htmlFor="password">Password</label>
+        <label htmlFor="password">{t('auth.password')}</label>
         <div className="password-field">
           <input
             id="password"
             name="password"
             type={showPassword ? 'text' : 'password'}
-            defaultValue="john123"
             autoComplete="current-password"
             required
           />
           <button type="button" className="password-toggle" onClick={() => setShowPassword((v) => !v)}>
-            {showPassword ? 'Hide' : 'Show'}
+            {showPassword ? (<LocalizedText source={"Hide"} />) : (<LocalizedText source={"Show"} />)}
           </button>
         </div>
         <label className="check-row">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-          Remember email
+          {t('auth.rememberEmail')}
         </label>
         {error ? <p className="error">{error}</p> : null}
         <button className="primary" type="submit" disabled={busy}>
-          {busy ? <Spinner size={18} /> : null}
-          Sign in
-        </button>
-        <button type="button" className="text-btn" onClick={() => setForgot(true)}>Forgot password</button>
+          {busy ? <Spinner size={18} /> : null}<LocalizedText source={"Sign in"} /></button>
+        <button type="button" className="text-btn" onClick={() => setForgot(true)}>{t('auth.forgotPassword')}</button>
         <p className="meta" style={{ textAlign: 'center' }}>
-          No account? <Link to="/register">Create one</Link>
+          {t('auth.noAccount')} <Link to="/register">{t('auth.createOne')}</Link>
         </p>
       </form>
     </AuthLayout>

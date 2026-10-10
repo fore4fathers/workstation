@@ -1,3 +1,5 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api.js';
@@ -15,6 +17,7 @@ const METHODS = [
 ];
 
 export default function Withdraw() {
+  const { t: trText } = useLanguage();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [method, setMethod] = useState('');
@@ -67,16 +70,16 @@ export default function Withdraw() {
   return (
     <>
       <div className="topbar keep">
-        <Link className="icon-btn" to="/wallet" aria-label="Back"><IconBack /></Link>
-        <h1>Cash out</h1>
+        <Link className="icon-btn" to="/wallet" aria-label={trText("Back")}><IconBack /></Link>
+        <h1><LocalizedText source={"Cash out"} /></h1>
         <span className="meta">{step + 1}/3</span>
       </div>
       <div className="page">
         <div className="wiz-progress"><span style={{ width: `${((step + 1) / 3) * 100}%` }} /></div>
-        <p className="meta">Available {money(available)}</p>
+        <p className="meta"><LocalizedText source={"Available"} />{' '}{money(available)}</p>
         {step === 0 && (
           <>
-            <h2>Choose method</h2>
+            <h2><LocalizedText source={"Choose method"} /></h2>
             <div className="wiz-options">
               {METHODS.map((m) => (
                 <button
@@ -85,8 +88,8 @@ export default function Withdraw() {
                   className={`wiz-option${method === m.id ? ' on' : ''}`}
                   onClick={() => setMethod(m.id)}
                 >
-                  <b>{m.label}</b>
-                  <span className="meta">{m.desc || `${m.crypto} ${m.network}`}</span>
+                  <b>{trText(m.label, m.label)}</b>
+                  <span className="meta">{m.desc ? trText(m.desc, m.desc) : `${m.crypto} ${m.network}`}</span>
                 </button>
               ))}
             </div>
@@ -94,24 +97,24 @@ export default function Withdraw() {
         )}
         {step === 1 && (
           <>
-            <h2>Details</h2>
-            <label htmlFor="wd-amt">Amount</label>
+            <h2><LocalizedText source={"Details"} /></h2>
+            <label htmlFor="wd-amt"><LocalizedText source={"Amount"} /></label>
             <input id="wd-amt" type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
             {meta?.crypto ? (
               <>
-                <label htmlFor="wd-addr">Saved address</label>
+                <label htmlFor="wd-addr"><LocalizedText source={"Saved address"} /></label>
                 {addrs.length ? (
                   <select id="wd-addr" value={addressId} onChange={(e) => setAddressId(e.target.value)}>
-                    <option value="">Select</option>
+                    <option value=""><LocalizedText source={"Select"} /></option>
                     {addrs.map((a) => <option key={a.id} value={a.id}>{a.label || a.address}</option>)}
                   </select>
                 ) : (
-                  <p className="meta">Save a {meta.crypto} {meta.network} address on Wallet first.</p>
+                  <p className="meta"><LocalizedText source={"Save a"} />{' '}{meta.crypto} {meta.network}{' '}<LocalizedText source={"address on Wallet first."} /></p>
                 )}
               </>
             ) : (
               <>
-                <label htmlFor="wd-memo">Destination / memo</label>
+                <label htmlFor="wd-memo"><LocalizedText source={"Destination / memo"} /></label>
                 <input id="wd-memo" value={memo} onChange={(e) => setMemo(e.target.value)} />
               </>
             )}
@@ -119,23 +122,21 @@ export default function Withdraw() {
         )}
         {step === 2 && (
           <>
-            <h2>Review</h2>
+            <h2><LocalizedText source={"Review"} /></h2>
             <div className="card">
-              <p><b>{money(amount)}</b> via {meta?.label}</p>
-              <p className="meta">Held until an admin approves. Rejected funds return to available.</p>
+              <p><b>{money(amount)}</b>{' '}<LocalizedText source={"via"} />{' '}{meta?.label}</p>
+              <p className="meta"><LocalizedText source={"Held until an admin approves. Rejected funds return to available."} /></p>
             </div>
           </>
         )}
         {error ? <p className="error">{error}</p> : null}
         <div className="wiz-nav">
-          {step > 0 ? <button type="button" className="ghost" onClick={() => setStep(step - 1)}>Back</button> : null}
+          {step > 0 ? <button type="button" className="ghost" onClick={() => setStep(step - 1)}><LocalizedText source={"Back"} /></button> : null}
           {step < 2 ? (
-            <button type="button" className="primary" disabled={!canNext()} onClick={() => setStep(step + 1)}>Next</button>
+            <button type="button" className="primary" disabled={!canNext()} onClick={() => setStep(step + 1)}><LocalizedText source={"Next"} /></button>
           ) : (
             <button type="button" className="primary" disabled={busy} onClick={submit}>
-              {busy ? <Spinner size={18} /> : null}
-              Submit
-            </button>
+              {busy ? <Spinner size={18} /> : null}<LocalizedText source={"Submit"} /></button>
           )}
         </div>
       </div>

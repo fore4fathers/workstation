@@ -1,8 +1,11 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { api, apiBlob } from '../../api.js';
 import { money, paymentMethodLabel, when } from '../../format.js';
 
 export default function AdminDeposits() {
+  const { t: trText } = useLanguage();
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(null);
@@ -47,12 +50,12 @@ export default function AdminDeposits() {
 
   return (
     <>
-      <h2>Deposits</h2>
+      <h2><LocalizedText source={"Deposits"} /></h2>
       {error ? <p className="error">{error}</p> : null}
       <div className="card">
         <table className="table">
           <thead>
-            <tr><th>User</th><th>Amount</th><th>Method</th><th>Proof</th><th>Status</th><th>When</th><th /></tr>
+            <tr><th><LocalizedText source={"User"} /></th><th><LocalizedText source={"Amount"} /></th><th><LocalizedText source={"Method"} /></th><th><LocalizedText source={"Proof"} /></th><th><LocalizedText source={"Status"} /></th><th><LocalizedText source={"When"} /></th><th /></tr>
           </thead>
           <tbody>
             {(rows || []).map((d) => (
@@ -61,19 +64,15 @@ export default function AdminDeposits() {
                 <td className="money">{money(d.amount)}</td>
                 <td>{paymentMethodLabel(d.method)}{d.tx_ref ? <div className="meta">{d.tx_ref}</div> : null}</td>
                 <td>{d.details?.proof_filename
-                  ? <button type="button" className="ghost small" disabled={proof?.loading} onClick={() => showProof(d.id)}>View image</button>
-                  : <span className="meta">None</span>}</td>
+                  ? <button type="button" className="ghost small" disabled={proof?.loading} onClick={() => showProof(d.id)}><LocalizedText source={"View image"} /></button>
+                  : <span className="meta"><LocalizedText source={"None"} /></span>}</td>
                 <td><span className={`pill ${d.status.toLowerCase()}`}>{d.status}</span></td>
                 <td>{when(d.created_at)}</td>
                 <td className="row-actions">
                   {d.status === 'PENDING' ? (
                     <>
-                      <button type="button" className="primary small" disabled={!!busy} onClick={() => act(d.id, 'approve')}>
-                        Approve
-                      </button>
-                      <button type="button" className="ghost" disabled={!!busy} onClick={() => act(d.id, 'reject')}>
-                        Reject
-                      </button>
+                      <button type="button" className="primary small" disabled={!!busy} onClick={() => act(d.id, 'approve')}><LocalizedText source={"Approve"} /></button>
+                      <button type="button" className="ghost" disabled={!!busy} onClick={() => act(d.id, 'reject')}><LocalizedText source={"Reject"} /></button>
                     </>
                   ) : null}
                 </td>
@@ -81,14 +80,14 @@ export default function AdminDeposits() {
             ))}
           </tbody>
         </table>
-        {rows && !rows.length ? <p className="meta">No deposits.</p> : null}
+        {rows && !rows.length ? <p className="meta"><LocalizedText source={"No deposits."} /></p> : null}
       </div>
-      {proof?.loading ? <div className="proof-viewer-backdrop"><div className="proof-viewer-card">Loading payment proof…</div></div> : null}
+      {proof?.loading ? <div className="proof-viewer-backdrop"><div className="proof-viewer-card"><LocalizedText source={"Loading payment proof…"} /></div></div> : null}
       {proof?.url ? (
         <div className="proof-viewer-backdrop" role="presentation" onClick={() => setProof(null)}>
-          <div className="proof-viewer-card" role="dialog" aria-modal="true" aria-label="Deposit proof image" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="ghost small" onClick={() => setProof(null)}>Close</button>
-            <img src={proof.url} alt="Submitted crypto deposit proof" />
+          <div className="proof-viewer-card" role="dialog" aria-modal="true" aria-label={trText("Deposit proof image")} onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="ghost small" onClick={() => setProof(null)}><LocalizedText source={"Close"} /></button>
+            <img src={proof.url} alt={trText("Submitted crypto deposit proof")} />
           </div>
         </div>
       ) : null}

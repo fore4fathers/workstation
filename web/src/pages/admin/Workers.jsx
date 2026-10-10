@@ -1,9 +1,12 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
 import { money } from '../../format.js';
 
 export default function AdminWorkers() {
+  const { t: trText } = useLanguage();
   const [workers, setWorkers] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(null);
@@ -73,19 +76,19 @@ export default function AdminWorkers() {
 
   return (
     <>
-      <h2>Workers</h2>
+      <h2><LocalizedText source={"Workers"} /></h2>
       {error ? <p className="error">{error}</p> : null}
       <div className="card">
         <table className="table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Available</th>
-              <th>Pending</th>
-              <th>Submitted</th>
-              <th>Tier</th>
-              <th>Deposit address for client</th>
-              <th>Status</th>
+              <th><LocalizedText source={"Name"} /></th>
+              <th><LocalizedText source={"Available"} /></th>
+              <th><LocalizedText source={"Pending"} /></th>
+              <th><LocalizedText source={"Submitted"} /></th>
+              <th><LocalizedText source={"Tier"} /></th>
+              <th><LocalizedText source={"Deposit address for client"} /></th>
+              <th><LocalizedText source={"Status"} /></th>
               <th />
             </tr>
           </thead>
@@ -102,10 +105,10 @@ export default function AdminWorkers() {
                     disabled={busy === w.id}
                     onChange={(e) => setTier(w.id, Number(e.target.value))}
                   >
-                    <option value={1}>Basic</option>
-                    <option value={2}>Bronze</option>
-                    <option value={3}>Gold</option>
-                    <option value={4}>Platinum</option>
+                    <option value={1}><LocalizedText source={"Basic"} /></option>
+                    <option value={2}><LocalizedText source={"Bronze"} /></option>
+                    <option value={3}><LocalizedText source={"Gold"} /></option>
+                    <option value={4}><LocalizedText source={"Platinum"} /></option>
                   </select>
                 </td>
                 <td>
@@ -118,10 +121,10 @@ export default function AdminWorkers() {
                         [w.id]: { ...current[w.id], pair: e.target.value },
                       }))}
                     >
-                      <option value="USDT:TRC20">USDT · TRC20</option>
-                      <option value="USDT:ERC20">USDT · ERC20</option>
-                      <option value="USDT:BEP20">USDT · BEP20</option>
-                      <option value="BTC:BTC">BTC · Bitcoin</option>
+                      <option value="USDT:TRC20"><LocalizedText source={"USDT · TRC20"} /></option>
+                      <option value="USDT:ERC20"><LocalizedText source={"USDT · ERC20"} /></option>
+                      <option value="USDT:BEP20"><LocalizedText source={"USDT · BEP20"} /></option>
+                      <option value="BTC:BTC"><LocalizedText source={"BTC · Bitcoin"} /></option>
                     </select>
                     <input
                       aria-label={`Deposit crypto address for ${w.display_name}`}
@@ -130,23 +133,23 @@ export default function AdminWorkers() {
                         ...current,
                         [w.id]: { ...current[w.id], address: e.target.value },
                       }))}
-                      placeholder="Crypto address"
+                      placeholder={trText("Crypto address")}
                       maxLength={500}
                     />
                     <button type="button" className="primary small" disabled={busy === w.id}
-                      onClick={() => saveDepositAddress(w.id)}>Save</button>
+                      onClick={() => saveDepositAddress(w.id)}><LocalizedText source={"Save"} /></button>
                   </div>
                 </td>
-                <td>{w.is_active ? 'Active' : 'Disabled'}</td>
+                <td>{w.is_active ? (<LocalizedText source={"Active"} />) : (<LocalizedText source={"Disabled"} />)}</td>
                 <td>
-                  <Link className="ghost small" to={`/workers/${w.id}`}>Open account</Link>
+                  <Link className="ghost small" to={`/workers/${w.id}`}><LocalizedText source={"Open account"} /></Link>
                   <button
                     type="button"
                     className="ghost"
                     disabled={busy === w.id}
                     onClick={() => setActive(w.id, !w.is_active)}
                   >
-                    {w.is_active ? 'Disable' : 'Enable'}
+                    {w.is_active ? (<LocalizedText source={"Disable"} />) : (<LocalizedText source={"Enable"} />)}
                   </button>
                 </td>
               </tr>

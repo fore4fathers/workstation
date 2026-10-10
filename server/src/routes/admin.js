@@ -42,6 +42,40 @@ adminRouter.get('/stats', async (_req, res) => {
   });
 });
 
+adminRouter.get('/support-contact', async (_req, res) => {
+  const { rows } = await query(
+    `SELECT value FROM app_settings WHERE key = 'telegram_support_contact'`,
+  );
+  res.json({ contact: rows[0]?.value || 'https://t.me/aiworkstation_support' });
+});
+
+adminRouter.put('/support-contact', async (req, res) => {
+  const value = String(req.body?.contact || '').trim();
+  let contact;
+  if (/^@?[A-Za-z0-9_]{5,32}$/.test(value)) {
+    contact = `https://t.me/${value.replace(/^@/, '')}`;
+  } else {
+    try {
+      const url = new URL(value);
+      if (url.protocol !== 'https:' || !['t.me', 'telegram.me'].includes(url.hostname)
+          || url.pathname === '/' || url.username || url.password) {
+        throw new Error('invalid');
+      }
+      contact = `https://t.me${url.pathname}${url.search}`;
+    } catch {
+      return res.status(400).json({ error: 'Enter a Telegram username or https://t.me link.' });
+    }
+  }
+  const { rows } = await query(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES ('telegram_support_contact', $1, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+     RETURNING value`,
+    [contact],
+  );
+  res.json({ contact: rows[0].value });
+});
+
 adminRouter.get('/tasks', async (_req, res) => {
   const { rows } = await query(
     `SELECT t.*,

@@ -1,8 +1,11 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 import { money } from '../../format.js';
 
 export default function AdminDriveSets() {
+  const { t: trText } = useLanguage();
   const [tasks, setTasks] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [sets, setSets] = useState([]);
@@ -81,81 +84,81 @@ export default function AdminDriveSets() {
   return (
     <>
       <div className="section-h">
-        <h2>Label Sets</h2>
-        <p className="meta">Assign image sets using imported Civitai images and their stored prompts.</p>
+        <h2><LocalizedText source={"Label Sets"} /></h2>
+        <p className="meta"><LocalizedText source={"Assign image sets using imported Civitai images and their stored prompts."} /></p>
       </div>
       {error ? <p className="error">{error}</p> : null}
       <div className="card">
-        <h3>Assign New Set</h3>
+        <h3><LocalizedText source={"Assign New Set"} /></h3>
         <div className="row">
           <div>
-            <label>Worker</label>
+            <label><LocalizedText source={"Worker"} /></label>
             <select value={selectedWorker} onChange={(e) => setSelectedWorker(e.target.value)}>
-              <option value="">Select worker...</option>
+              <option value=""><LocalizedText source={"Select worker..."} /></option>
               {(workers || []).map((w) => (
                 <option key={w.id} value={w.id}>{w.display_name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label>Task (Image Type)</label>
+            <label><LocalizedText source={"Task (Image Type)"} /></label>
             <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)}>
-              <option value="">Select task...</option>
+              <option value=""><LocalizedText source={"Select task..."} /></option>
               {(tasks || []).filter((t) => t.type === 'image').map((t) => (
                 <option key={t.id} value={t.id}>{t.title}</option>
               ))}
             </select>
           </div>
           <div>
-            <label>Most accurate match reward ($)</label>
+            <label><LocalizedText source={"Most accurate match reward ($)"} /></label>
             <input type="number" min="0" step="0.01" value={bestMatchRate} onChange={(e) => setBestMatchRate(e.target.value)} />
           </div>
           <div>
-            <label>Alternative useful match reward ($)</label>
+            <label><LocalizedText source={"Alternative useful match reward ($)"} /></label>
             <input type="number" min="0" step="0.01" value={alternativeRate} onChange={(e) => setAlternativeRate(e.target.value)} />
           </div>
           <div>
-        <label>Other-language response reward ($, matches closest reward)</label>
+        <label><LocalizedText source={"Other-language response reward ($, matches closest reward)"} /></label>
         <input type="number" value={bestMatchRate} readOnly aria-readonly="true" />
           </div>
-          <p className="meta">Every submitted response earns its configured reward. The closest caption earns the highest rate.</p>
+          <p className="meta"><LocalizedText source={"Every submitted response earns its configured reward. The closest caption earns the highest rate."} /></p>
         </div>
         <button
           className="primary small"
           disabled={busy || !selectedWorker || !selectedTask}
           onClick={assignSet}
         >
-          {busy ? 'Assigning...' : 'Assign 20-Image Set'}
+          {busy ? (<LocalizedText source={"Assigning..."} />) : (<LocalizedText source={"Assign 20-Image Set"} />)}
         </button>
       </div>
       <div className="card" style={{ marginTop: 24 }}>
-        <h3>Assigned Label Sets</h3>
+        <h3><LocalizedText source={"Assigned Label Sets"} /></h3>
         <table className="table">
           <thead>
             <tr>
-              <th>Worker</th>
-              <th>Task</th>
-              <th>Status</th>
-              <th>Progress</th>
-              <th>Most accurate</th>
-              <th>Alternative</th>
-              <th>Other language</th>
-              <th>Commission earned</th>
-              <th>Rewards (closest / alternative / other language)</th>
-              <th>Assigned</th>
+              <th><LocalizedText source={"Worker"} /></th>
+              <th><LocalizedText source={"Task"} /></th>
+              <th><LocalizedText source={"Status"} /></th>
+              <th><LocalizedText source={"Progress"} /></th>
+              <th><LocalizedText source={"Most accurate"} /></th>
+              <th><LocalizedText source={"Alternative"} /></th>
+              <th><LocalizedText source={"Other language"} /></th>
+              <th><LocalizedText source={"Commission earned"} /></th>
+              <th><LocalizedText source={"Rewards (closest / alternative / other language)"} /></th>
+              <th><LocalizedText source={"Assigned"} /></th>
               <th />
             </tr>
           </thead>
           <tbody>
             {(sets || []).filter((s) => s.status !== 'cancelled').map((s) => {
               const w = (workers || []).find((x) => x.id === s.user_id);
-              const t = (tasks || []).find((x) => x.id === s.task_id);
+              const task = (tasks || []).find((x) => x.id === s.task_id);
               return (
                 <tr key={s.id}>
                   <td>{w ? w.display_name : s.user_id}</td>
-                  <td>{t ? t.title : s.task_id}</td>
-                  <td><span className={`pill ${s.status}`}>{s.status}</span></td>
-                  <td>{s.answered_count || 0} / {s.total_items} answered</td>
+                  <td>{task ? task.title : s.task_id}</td>
+                  <td><span className={`pill ${s.status}`}>{trText(s.status, s.status)}</span></td>
+                  <td>{s.answered_count || 0} / {s.total_items}{' '}<LocalizedText source={"answered"} /></td>
                   <td>{s.best_match_count || 0}</td>
                   <td>{s.alternative_match_count || 0}</td>
                   <td>{s.foreign_language_count || 0}</td>
@@ -163,14 +166,14 @@ export default function AdminDriveSets() {
                   <td>{money(Number(s.commission_cents ?? 50) / 100)} / {money(Number(s.alternative_commission_cents ?? 25) / 100)} / {money(Number(s.foreign_commission_cents ?? s.commission_cents ?? 50) / 100)}</td>
                   <td>{new Date(s.assigned_at).toLocaleString()}</td>
                   <td>{s.status === 'active' ? (
-                    <button className="ghost small" disabled={busy} onClick={() => unassignSet(s.id)}>Unassign</button>
+                    <button className="ghost small" disabled={busy} onClick={() => unassignSet(s.id)}><LocalizedText source={"Unassign"} /></button>
                   ) : null}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {!(sets || []).some((s) => s.status !== 'cancelled') ? <p className="meta">No label sets assigned yet.</p> : null}
+        {!(sets || []).some((s) => s.status !== 'cancelled') ? <p className="meta"><LocalizedText source={"No label sets assigned yet."} /></p> : null}
       </div>
     </>
   );

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { logout } from '../session.js';
+import { LanguageToggle, useLanguage } from '../i18n.jsx';
 
 const links = [
-  { to: '/', label: 'Dashboard', end: true, icon: 'home' },
-  { to: '/drive-sets', label: 'Label Sets', icon: 'grid' },
-  { to: '/profile', label: 'Skills', icon: 'cap' },
-  { to: '/wallet', label: 'Earnings', icon: 'card' },
-  { to: '/account', label: 'Profile', icon: 'user' },
+  { to: '/', label: 'Dashboard', key: 'nav.dashboard', end: true, icon: 'home' },
+  { to: '/drive-sets', label: 'Label Sets', key: 'nav.labelSets', icon: 'grid' },
+  { to: '/training', label: 'Training', key: 'nav.training', icon: 'training' },
+  { to: '/wallet', label: 'Earnings', key: 'nav.earnings', icon: 'card' },
+  { to: '/profile', label: 'Profile', key: 'nav.profile', icon: 'user' },
 ];
 
 function Glyph({ name }) {
@@ -19,22 +20,25 @@ function Glyph({ name }) {
   if (name === 'card') return <svg {...p}><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M3 10h18" /></svg>;
   if (name === 'user') return <svg {...p}><circle cx="12" cy="8" r="3" /><path d="M5 19c1.5-3 4-4.5 7-4.5S17.5 16 19 19" /></svg>;
   if (name === 'grid') return <svg {...p}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>;
+  if (name === 'training') return <svg {...p}><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21z" /><path d="M4 5.5v13A2.5 2.5 0 0 1 6.5 16H20M8 7h8M8 10h8" /></svg>;
   if (name === 'help') return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7V14" /><path d="M12 17h.01" /></svg>;
   return <svg {...p}><path d="M10 7V5H5v14h5v-2M9 12h10M15 8l4 4-4 4" /></svg>;
 }
 
 export default function WorkerLayout({ session }) {
+  const { t: trText } = useLanguage();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const name = session?.user?.display_name || 'Trainer';
   const tier = session?.user?.tier_name || 'Bronze';
 
   return (
     <div className="tm-shell">
-      <button type="button" className="tm-burger" aria-label="Menu" onClick={() => setOpen((v) => !v)}>
+      <button type="button" className="tm-burger" aria-label={trText("Menu")} onClick={() => setOpen((v) => !v)}>
         <span /><span /><span />
       </button>
-      {open ? <button type="button" className="tm-backdrop" aria-label="Close menu" onClick={() => setOpen(false)} /> : null}
+      {open ? <button type="button" className="tm-backdrop" aria-label={trText("Close menu")} onClick={() => setOpen(false)} /> : null}
       <aside className={`tm-side${open ? ' open' : ''}`}>
         <div className="tm-brand">
           <img src="/engagesphere-logo.png" alt="EngageSphere" className="tm-logo-img" />
@@ -49,35 +53,36 @@ export default function WorkerLayout({ session }) {
               onClick={() => setOpen(false)}
             >
               <Glyph name={l.icon} />
-              {l.label}
+              {t(l.key, l.label)}
             </NavLink>
           ))}
         </nav>
         <div className="tm-promo">
-          <b>Level up your skills</b>
-          <p>Complete more tasks to qualify for higher-paying work.</p>
-          <NavLink to="/profile" onClick={() => setOpen(false)}>View skills</NavLink>
+          <b>{t('nav.levelUpSkills')}</b>
+          <p>{t('nav.unlockTasks')}</p>
+          <NavLink to="/profile" onClick={() => setOpen(false)}>{t('nav.viewSkills')}</NavLink>
         </div>
         <div className="tm-side-foot">
-          <NavLink to="/chat" onClick={() => setOpen(false)}><Glyph name="help" /> Help Center</NavLink>
-          <button type="button" onClick={() => logout(navigate)}><Glyph name="out" /> Log Out</button>
+          <NavLink to="/chat" onClick={() => setOpen(false)}><Glyph name="help" /> {t('nav.helpCenter')}</NavLink>
+          <button type="button" onClick={() => logout(navigate)}><Glyph name="out" /> {t('nav.logOut')}</button>
         </div>
       </aside>
       <div className="tm-main">
         <header className="tm-top">
           <div />
           <div className="tm-hello">
-            <NavLink to="/chat" className="tm-bell" aria-label="Notifications">●</NavLink>
+            <LanguageToggle />
+            <NavLink to="/chat" className="tm-bell" aria-label={trText("Notifications")}>●</NavLink>
             <div>
-              <b>Hello, {name.split(' ')[0]}</b>
-              <span>AI Trainer · {tier}</span>
+              <b>{t('nav.hello')}, {name.split(' ')[0]}</b>
+              <span>{t('nav.trainerTier', 'AI Trainer · {tier}').replace('{tier}', tier)}</span>
             </div>
           </div>
         </header>
         <Outlet context={{ session }} />
         <footer className="tm-foot">
-          <span>© 2026 EngageSphere. All rights reserved.</span>
-          <span>Terms of Service · Privacy Policy · Payment Policy</span>
+          <span>{t('nav.copyright')}</span>
+          <span>{t('nav.terms')}</span>
         </footer>
       </div>
     </div>

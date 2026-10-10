@@ -1,3 +1,4 @@
+import { LocalizedText } from '../../i18n.jsx';
 import { useState } from 'react';
 import { api } from '../../api.js';
 import { Spinner } from '../../ui.jsx';
@@ -27,7 +28,7 @@ export default function AdminProfile({ session }) {
   return (
     <form className="card" onSubmit={onSave}>
       <p className="meta">{u.email}</p>
-      <label htmlFor="display_name">Name</label>
+      <label htmlFor="display_name"><LocalizedText source={"Name"} /></label>
       <input
         id="display_name"
         value={name}
@@ -35,11 +36,9 @@ export default function AdminProfile({ session }) {
         required
       />
       {error ? <p className="error">{error}</p> : null}
-      {saved ? <p className="meta">Saved.</p> : null}
+      {saved ? <p className="meta"><LocalizedText source={"Saved."} /></p> : null}
       <button className="primary" type="submit" disabled={busy}>
-        {busy ? <Spinner size={18} /> : null}
-        Save
-      </button>
+        {busy ? <Spinner size={18} /> : null}<LocalizedText source={"Save"} /></button>
     </form>
   );
 }

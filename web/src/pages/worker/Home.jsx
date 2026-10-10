@@ -1,7 +1,9 @@
+import { LocalizedText } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
 import { money, typeIcon, when } from '../../format.js';
+import { useLanguage } from '../../i18n.jsx';
 
 const TYPE_META = {
   intent: { label: 'Rate AI responses', blurb: 'Rate the quality and helpfulness of AI-generated responses.', color: 'blue', mins: 5 },
@@ -16,6 +18,7 @@ const STATUS = {
 };
 
 export default function WorkerHome({ session }) {
+  const { t: trText } = useLanguage();
   const [hub, setHub] = useState(null);
   const [error, setError] = useState('');
   const [gate, setGate] = useState('');
@@ -34,8 +37,8 @@ export default function WorkerHome({ session }) {
   return (
     <div className="page dash tm-dash">
       <header className="dash-head">
-        <h1>AI Trainer Dashboard</h1>
-        <p>Help build smarter AI. Complete tasks, improve models, and earn.</p>
+        <h1><LocalizedText source={"AI Trainer Dashboard"} /></h1>
+        <p><LocalizedText source={"Help build smarter AI. Complete tasks, improve models, and earn."} /></p>
       </header>
 
       {error ? <p className="error">{error}</p> : null}
@@ -43,35 +46,32 @@ export default function WorkerHome({ session }) {
       <div className="dash-kpis">
         <div className="dash-kpi">
           <div>
-            <div className="meta">Available earnings</div>
+            <div className="meta"><LocalizedText source={"Available earnings"} /></div>
             <div className="dash-kpi-n">{money(s.account.balance)}</div>
             <div className="meta">
-              {Number(s.account.pending) > 0 ? `Pending ${money(s.account.pending)}` : 'Withdraw anytime'}
+              {Number(s.account.pending) > 0 ? `Pending ${money(s.account.pending)}` : (<LocalizedText source={"Withdraw anytime"} />)}
             </div>
           </div>
-          <span className="dash-kpi-ico teal">$</span>
         </div>
         <div className="dash-kpi">
           <div>
-            <div className="meta">This week</div>
+            <div className="meta"><LocalizedText source={"This week"} /></div>
             <div className="dash-kpi-n">{money(s.stats.week_earned)}</div>
-            <div className="meta">{s.stats.tasks_done ?? 0} tasks completed</div>
+            <div className="meta">{s.stats.tasks_done ?? 0}{' '}<LocalizedText source={"tasks completed"} /></div>
           </div>
-          <span className="dash-kpi-ico blue">~</span>
         </div>
         <div className="dash-kpi">
           <div>
-            <div className="meta">Total earned</div>
+            <div className="meta"><LocalizedText source={"Total earned"} /></div>
             <div className="dash-kpi-n">{money(s.stats.total_earned)}</div>
-            <div className="meta">All time</div>
+            <div className="meta"><LocalizedText source={"All time"} /></div>
           </div>
-          <span className="dash-kpi-ico purple">=</span>
         </div>
         <div className="dash-kpi">
           <div>
-            <div className="meta">Quality score</div>
+            <div className="meta"><LocalizedText source={"Quality score"} /></div>
             <div className="dash-kpi-n">{accuracy}%</div>
-            <div className="meta">{accuracy >= 90 ? 'Excellent work!' : 'Keep going'}</div>
+            <div className="meta">{accuracy >= 90 ? (<LocalizedText source={"Excellent work!"} />) : (<LocalizedText source={"Keep going"} />)}</div>
           </div>
           <span className="dash-ring" style={{ '--pct': `${accuracy}` }} />
         </div>
@@ -81,31 +81,31 @@ export default function WorkerHome({ session }) {
         <div>
           <div className="section-h">
             <div>
-              <h2>Available Tasks</h2>
-              <p className="meta">Choose a task type and start earning</p>
+              <h2><LocalizedText source={"Available Tasks"} /></h2>
+              <p className="meta"><LocalizedText source={"Choose a task type and start earning"} /></p>
             </div>
-            <Link to="/tasks" className="tm-viewall">View all tasks →</Link>
+            <Link to="/tasks" className="tm-viewall"><LocalizedText source={"View all tasks →"} /></Link>
           </div>
           <div className="dash-types">
             {['intent', 'image', 'text'].map((type) => {
               const meta = TYPE_META[type];
-              const t = (hub?.types || []).find((x) => x.type === type);
+              const taskType = (hub?.types || []).find((x) => x.type === type);
               const locked = (type === 'text' || type === 'intent') && tier < 3;
               return (
                 <div key={type} className={`dash-type ${meta.color}`}>
                   <span className="dash-type-ico">{typeIcon(type)}</span>
-                  <h3>{meta.label}</h3>
-                  <p className="meta">{meta.blurb}</p>
+                  <h3>{trText(meta.label, meta.label)}</h3>
+                  <p className="meta">{trText(meta.blurb, meta.blurb)}</p>
                   <div className="dash-type-pay">
-                    <b>{t ? money(t.pay_dollars) : '—'}</b>
-                    <span className="meta">{t ? `~${t.est_minutes || meta.mins} min` : 'None open'}</span>
+                    <b>{taskType ? money(taskType.pay_dollars) : '—'}</b>
+                    <span className="meta">{taskType ? `~${taskType.est_minutes || meta.mins} min` : (<LocalizedText source={"None open"} />)}</span>
                   </div>
                   {locked ? (
-                    <button type="button" className="dash-type-btn" onClick={() => setGate(meta.label)}>Start Task</button>
-                  ) : t ? (
-                    <Link className="dash-type-btn" to={`/tasks/${t.id}`}>Start Task</Link>
+                    <button type="button" className="dash-type-btn" onClick={() => setGate(meta.label)}><LocalizedText source={"Start Task"} /></button>
+                  ) : taskType ? (
+                    <Link className="dash-type-btn" to={`/tasks/${taskType.id}`}><LocalizedText source={"Start Task"} /></Link>
                   ) : (
-                    <span className="dash-type-btn off">Caught up</span>
+                    <span className="dash-type-btn off"><LocalizedText source={"Caught up"} /></span>
                   )}
                 </div>
               );
@@ -113,17 +113,17 @@ export default function WorkerHome({ session }) {
           </div>
 
           <div className="section-h">
-            <h2>Recent activity</h2>
+            <h2><LocalizedText source={"Recent activity"} /></h2>
           </div>
           <div className="card dash-table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Task</th>
+                  <th><LocalizedText source={"Task"} /></th>
                   <th>ID</th>
-                  <th>Date</th>
-                  <th>Payment</th>
-                  <th>Status</th>
+                  <th><LocalizedText source={"Date"} /></th>
+                  <th><LocalizedText source={"Payment"} /></th>
+                  <th><LocalizedText source={"Status"} /></th>
                 </tr>
               </thead>
               <tbody>
@@ -133,32 +133,32 @@ export default function WorkerHome({ session }) {
                     <td className="meta">T-{r.id}</td>
                     <td className="meta">{when(r.submitted_at)}</td>
                     <td className="money">{money(r.pay_dollars)}</td>
-                    <td><span className={`pill ${r.payout_status}`}>{STATUS[r.payout_status] || r.payout_status}</span></td>
+                    <td><span className={`pill ${r.payout_status}`}>{STATUS[r.payout_status] ? trText(STATUS[r.payout_status], STATUS[r.payout_status]) : r.payout_status}</span></td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {hub && !hub.activity.length ? <p className="meta">No submissions yet.</p> : null}
+            {hub && !hub.activity.length ? <p className="meta"><LocalizedText source={"No submissions yet."} /></p> : null}
           </div>
         </div>
 
         <aside className="dash-rail">
           <div className="card tm-train">
-            <h3>Skills Center</h3>
-            <p className="meta">Complete more work to unlock higher-paying tasks and improve your quality score.</p>
+            <h3><LocalizedText source={"Skills Center"} /></h3>
+            <p className="meta"><LocalizedText source={"Complete more work to unlock higher-paying tasks and improve your quality score."} /></p>
             <div className="dash-bar"><span style={{ width: `${(tier / 4) * 100}%` }} /></div>
-            <p className="meta">{tier} / 4 modules · {tierName}</p>
-            <Link className="dash-type-btn blue-btn" to="/profile">View your skills</Link>
+            <p className="meta">{tier}{' '}<LocalizedText source={"/ 4 modules ·"} />{' '}{tierName}</p>
+            <Link className="dash-type-btn blue-btn" to="/profile"><LocalizedText source={"View your skills"} /></Link>
           </div>
           <div className="card">
-            <h3>Why your work matters</h3>
+            <h3><LocalizedText source={"Why your work matters"} /></h3>
             <ul className="dash-list">
-              <li>Improve AI accuracy</li>
-              <li>Help build reliable models</li>
-              <li>Work from anywhere</li>
-              <li>Get paid fairly</li>
+              <li><LocalizedText source={"Improve AI accuracy"} /></li>
+              <li><LocalizedText source={"Help build reliable models"} /></li>
+              <li><LocalizedText source={"Work from anywhere"} /></li>
+              <li><LocalizedText source={"Get paid fairly"} /></li>
             </ul>
-            <Link to="/account">Learn more →</Link>
+            <Link to="/account"><LocalizedText source={"Learn more →"} /></Link>
           </div>
         </aside>
       </div>
@@ -166,7 +166,7 @@ export default function WorkerHome({ session }) {
         <div className="gate-back" role="presentation" onClick={() => setGate('')}>
           <div className="gate-dialog" role="dialog" aria-modal="true" aria-labelledby="gate-title" onClick={(e) => e.stopPropagation()}>
             <h2 id="gate-title">{gate}</h2>
-            <p>This is only available on Gold and Platinum.</p>
+            <p><LocalizedText source={"This is only available on Gold and Platinum."} /></p>
             <button type="button" className="primary" onClick={() => setGate('')}>OK</button>
           </div>
         </div>

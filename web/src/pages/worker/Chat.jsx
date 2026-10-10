@@ -1,3 +1,5 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../api.js';
 import { getSocket } from '../../socket.js';
@@ -11,6 +13,7 @@ function whenShort(value) {
 }
 
 export default function Chat({ session }) {
+  const { t: trText } = useLanguage();
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [error, setError] = useState('');
@@ -80,11 +83,11 @@ export default function Chat({ session }) {
       <div className="msg-app">
         <aside className="msg-list">
           <div className="msg-list-head">
-            <h2>Messages</h2>
+            <h2><LocalizedText source={"Messages"} /></h2>
           </div>
           <input
             className="msg-search"
-            placeholder="Search messages"
+            placeholder={trText("Search messages")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -92,27 +95,27 @@ export default function Chat({ session }) {
             <button type="button" className={`msg-row${started || messages.length ? ' on' : ''}`} onClick={begin}>
               <span className="msg-avatar">S</span>
               <span className="msg-row-text">
-                <b>Support</b>
-                <span>{last?.content || 'Message the support team'}</span>
+                <b><LocalizedText source={"Support"} /></b>
+                <span>{last?.content || (<LocalizedText source={"Message the support team"} />)}</span>
               </span>
               <span className="msg-time">{whenShort(last?.created_at)}</span>
             </button>
           )}
-          {!conversation ? <p className="meta" style={{ padding: 12 }}>Loading…</p> : null}
+          {!conversation ? <p className="meta" style={{ padding: 12 }}><LocalizedText source={"Loading…"} /></p> : null}
         </aside>
         <section className="msg-main">
           {!started && !messages.length ? (
             <div className="msg-empty">
               <div className="msg-empty-icon" aria-hidden="true">✉</div>
-              <p>Message someone and chat<br />right now!</p>
-              <button type="button" className="primary small" onClick={begin}>Start message</button>
+              <p><LocalizedText source={"Message someone and chat"} /><br /><LocalizedText source={"right now!"} /></p>
+              <button type="button" className="primary small" onClick={begin}><LocalizedText source={"Start message"} /></button>
             </div>
           ) : (
             <>
               <div className="msg-thread-head">
                 <span className="msg-avatar">S</span>
                 <div>
-                  <b>Support</b>
+                  <b><LocalizedText source={"Support"} /></b>
                   <div className="meta">EngageSphere</div>
                 </div>
               </div>
@@ -126,12 +129,12 @@ export default function Chat({ session }) {
               <form className="chat-input static msg-compose" onSubmit={send}>
                 <input
                   ref={inputRef}
-                  placeholder="Write a message"
+                  placeholder={trText("Write a message")}
                   autoComplete="off"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                 />
-                <button className="primary small" type="submit">Send</button>
+                <button className="primary small" type="submit"><LocalizedText source={"Send"} /></button>
               </form>
             </>
           )}

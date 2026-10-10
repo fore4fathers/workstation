@@ -1,3 +1,5 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api } from '../../api.js';
@@ -5,6 +7,7 @@ import { IconBack } from '../../icons.jsx';
 import { Overlay, Spinner } from '../../ui.jsx';
 
 export default function TaskWork() {
+  const { t: trText } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
   const tier = useOutletContext()?.session?.user?.tier ?? 2;
@@ -45,7 +48,7 @@ export default function TaskWork() {
       <div className="gate-back" role="presentation">
         <div className="gate-dialog" role="dialog" aria-modal="true">
           <h2>{label}</h2>
-          <p>This is only available on Gold and Platinum.</p>
+          <p><LocalizedText source={"This is only available on Gold and Platinum."} /></p>
           <button type="button" className="primary" onClick={() => navigate('/')}>OK</button>
         </div>
       </div>
@@ -56,12 +59,12 @@ export default function TaskWork() {
     return (
       <div className="page">
         <p className="error">{error}</p>
-        <Link to="/tasks">Back</Link>
+        <Link to="/tasks"><LocalizedText source={"Back"} /></Link>
       </div>
     );
   }
   if (!task || !items.length) {
-    return <Overlay title="Preparing task" sub="Loading items" />;
+    return <Overlay title={trText("Preparing task")} sub="Loading items" />;
   }
 
   const item = items[idx];
@@ -104,7 +107,7 @@ export default function TaskWork() {
   return (
     <>
       <div className="topbar keep">
-        <Link className="icon-btn" to="/tasks" aria-label="Back"><IconBack /></Link>
+        <Link className="icon-btn" to="/tasks" aria-label={trText("Back")}><IconBack /></Link>
         <h1>{task.title}</h1>
         <span className="meta">{idx + 1}/{items.length}</span>
       </div>
@@ -112,8 +115,8 @@ export default function TaskWork() {
         <span style={{ width: `${((idx + (phase === 'out' ? 1 : 0)) / items.length) * 100}%` }} />
       </div>
       <div className="page">
-        {busy ? <Overlay title="Submitting" sub="Scoring your answers" /> : null}
-        {phase === 'out' && !busy ? <Overlay title="Next item" /> : null}
+        {busy ? <Overlay title={trText("Submitting")} sub="Scoring your answers" /> : null}
+        {phase === 'out' && !busy ? <Overlay title={trText("Next item")} /> : null}
         {busy ? (
           <div className="work-busy" />
         ) : (
@@ -142,7 +145,7 @@ export default function TaskWork() {
         {error ? <p className="error">{error}</p> : null}
         <button className="primary" type="button" onClick={goNext} disabled={busy || phase === 'out'}>
           {busy ? <Spinner size={18} /> : null}
-          {busy ? 'Submitting' : last ? 'Submit' : 'Next'}
+          {busy ? (<LocalizedText source={"Submitting"} />) : last ? (<LocalizedText source={"Submit"} />) : (<LocalizedText source={"Next"} />)}
         </button>
       </div>
     </>

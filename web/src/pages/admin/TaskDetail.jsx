@@ -1,3 +1,4 @@
+import { LocalizedText } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../../api.js';
@@ -33,7 +34,7 @@ export default function TaskDetail() {
     }
   }
 
-  if (!data) return <p className="meta">{error || 'Loading…'}</p>;
+  if (!data) return <p className="meta">{error || (<LocalizedText source={"Loading…"} />)}</p>;
   const { task, items, submissions } = data;
 
   return (
@@ -41,23 +42,23 @@ export default function TaskDetail() {
       <div className="section-h">
         <h2>{task.title}</h2>
         <div className="row-actions">
-          <Link className="ghost" to="/tasks">Back</Link>
+          <Link className="ghost" to="/tasks"><LocalizedText source={"Back"} /></Link>
           <button type="button" className="primary small" onClick={togglePublish} disabled={busy}>
-            {task.is_published ? 'Unpublish' : 'Publish'}
+            {task.is_published ? (<LocalizedText source={"Unpublish"} />) : (<LocalizedText source={"Publish"} />)}
           </button>
         </div>
       </div>
       {error ? <p className="error">{error}</p> : null}
       <div className="card">
         <p className="meta">
-          {typeLabel(task.type)} · {money(task.pay_dollars)} · {task.est_minutes} min ·{' '}
-          {task.is_published ? 'Published' : 'Hidden'}
+          {typeLabel(task.type)} · {money(task.pay_dollars)} · {task.est_minutes}{' '}<LocalizedText source={"min ·"} />{' '}
+          {task.is_published ? (<LocalizedText source={"Published"} />) : (<LocalizedText source={"Hidden"} />)}
         </p>
         <p>{task.description}</p>
-        <h3>Items</h3>
+        <h3><LocalizedText source={"Items"} /></h3>
         <table className="table">
           <thead>
-            <tr><th>#</th><th>Payload</th><th>Labels</th><th>Gold</th></tr>
+            <tr><th>#</th><th><LocalizedText source={"Payload"} /></th><th><LocalizedText source={"Labels"} /></th><th><LocalizedText source={"Gold"} /></th></tr>
           </thead>
           <tbody>
             {items.map((it, i) => (
@@ -72,10 +73,10 @@ export default function TaskDetail() {
         </table>
       </div>
       <div className="card" style={{ marginTop: 16 }}>
-        <h3>Submissions</h3>
+        <h3><LocalizedText source={"Submissions"} /></h3>
         <table className="table">
           <thead>
-            <tr><th>Worker</th><th>When</th><th>Payout</th><th>Answers</th></tr>
+            <tr><th><LocalizedText source={"Worker"} /></th><th><LocalizedText source={"When"} /></th><th><LocalizedText source={"Payout"} /></th><th><LocalizedText source={"Answers"} /></th></tr>
           </thead>
           <tbody>
             {(submissions || []).map((s) => (
@@ -90,7 +91,7 @@ export default function TaskDetail() {
             ))}
           </tbody>
         </table>
-        {!(submissions || []).length ? <p className="meta">No submissions yet.</p> : null}
+        {!(submissions || []).length ? <p className="meta"><LocalizedText source={"No submissions yet."} /></p> : null}
       </div>
     </>
   );

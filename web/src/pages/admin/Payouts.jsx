@@ -1,3 +1,4 @@
+import { LocalizedText } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 import { money, typeLabel, when } from '../../format.js';
@@ -32,19 +33,19 @@ export default function AdminPayouts() {
   return (
     <>
       <div className="section-h">
-        <h2>Payouts</h2>
+        <h2><LocalizedText source={"Payouts"} /></h2>
       </div>
-      <p className="meta">Release pays the worker. Void does not.</p>
+      <p className="meta"><LocalizedText source={"Release pays the worker. Void does not."} /></p>
       {error ? <p className="error">{error}</p> : null}
       <div className="card">
         <table className="table">
           <thead>
             <tr>
-              <th>Worker</th>
-              <th>Task</th>
-              <th>Amount</th>
-              <th>Accuracy</th>
-              <th>Submitted</th>
+              <th><LocalizedText source={"Worker"} /></th>
+              <th><LocalizedText source={"Task"} /></th>
+              <th><LocalizedText source={"Amount"} /></th>
+              <th><LocalizedText source={"Accuracy"} /></th>
+              <th><LocalizedText source={"Submitted"} /></th>
               <th />
             </tr>
           </thead>
@@ -63,22 +64,20 @@ export default function AdminPayouts() {
                     disabled={!!busy}
                     onClick={() => act(p.id, 'release')}
                   >
-                    {busy === `${p.id}-release` ? '…' : 'Release'}
+                    {busy === `${p.id}-release` ? '…' : (<LocalizedText source={"Release"} />)}
                   </button>
                   <button
                     type="button"
                     className="ghost"
                     disabled={!!busy}
                     onClick={() => act(p.id, 'void')}
-                  >
-                    Void
-                  </button>
+                  ><LocalizedText source={"Void"} /></button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {payouts && !payouts.length ? <p className="meta">No pending payouts.</p> : null}
+        {payouts && !payouts.length ? <p className="meta"><LocalizedText source={"No pending payouts."} /></p> : null}
       </div>
     </>
   );

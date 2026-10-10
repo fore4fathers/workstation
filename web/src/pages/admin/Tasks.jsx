@@ -1,3 +1,4 @@
+import { LocalizedText } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
@@ -16,20 +17,20 @@ export default function AdminTasks() {
   return (
     <>
       <div className="section-h">
-        <h2>Tasks</h2>
-        <Link className="primary small" to="/tasks/new">New task</Link>
+        <h2><LocalizedText source={"Tasks"} /></h2>
+        <Link className="primary small" to="/tasks/new"><LocalizedText source={"New task"} /></Link>
       </div>
       {error ? <p className="error">{error}</p> : null}
       <div className="card">
         <table className="table">
           <thead>
             <tr>
-              <th>Title</th>
-              <th>Type</th>
-              <th>Pay</th>
-              <th>Items</th>
-              <th>Submissions</th>
-              <th>Status</th>
+              <th><LocalizedText source={"Title"} /></th>
+              <th><LocalizedText source={"Type"} /></th>
+              <th><LocalizedText source={"Pay"} /></th>
+              <th><LocalizedText source={"Items"} /></th>
+              <th><LocalizedText source={"Submissions"} /></th>
+              <th><LocalizedText source={"Status"} /></th>
             </tr>
           </thead>
           <tbody>
@@ -40,12 +41,12 @@ export default function AdminTasks() {
                 <td className="money">{money(t.pay_dollars)}</td>
                 <td>{t.item_count}</td>
                 <td>{t.submissions}</td>
-                <td>{t.is_published ? 'Published' : 'Hidden'}</td>
+                <td>{t.is_published ? (<LocalizedText source={"Published"} />) : (<LocalizedText source={"Hidden"} />)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {tasks && !tasks.length ? <p className="meta">No tasks yet.</p> : null}
+        {tasks && !tasks.length ? <p className="meta"><LocalizedText source={"No tasks yet."} /></p> : null}
       </div>
     </>
   );

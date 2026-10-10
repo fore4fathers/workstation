@@ -1,3 +1,5 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api.js';
@@ -33,6 +35,7 @@ function hideAddress(address) {
 }
 
 export default function Deposit() {
+  const { t: trText } = useLanguage();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [method, setMethod] = useState('');
@@ -119,16 +122,16 @@ export default function Deposit() {
   return (
     <>
       <div className="topbar keep">
-        <Link className="icon-btn" to="/wallet" aria-label="Back"><IconBack /></Link>
-        <h1>Cash in</h1>
+        <Link className="icon-btn" to="/wallet" aria-label={trText("Back")}><IconBack /></Link>
+        <h1><LocalizedText source={"Cash in"} /></h1>
         <span className="meta">{step + 1}/3</span>
       </div>
       <div className="page deposit-page">
         <div className="wiz-progress"><span style={{ width: `${((step + 1) / 3) * 100}%` }} /></div>
         {step === 0 && (
           <>
-            <h2>Choose method</h2>
-            <p className="meta">How funds will arrive.</p>
+            <h2><LocalizedText source={"Choose method"} /></h2>
+            <p className="meta"><LocalizedText source={"How funds will arrive."} /></p>
             <div className="wiz-options">
               {METHODS.map((m) => (
                 <button
@@ -145,8 +148,8 @@ export default function Deposit() {
                     }
                   }}
                 >
-                  <b>{m.label}</b>
-                  <span className="meta">{m.desc}</span>
+                  <b>{trText(m.label, m.label)}</b>
+                  <span className="meta">{trText(m.desc, m.desc)}</span>
                 </button>
               ))}
             </div>
@@ -154,24 +157,24 @@ export default function Deposit() {
         )}
         {step === 1 && (
           <>
-            <h2>Details</h2>
-            <label htmlFor="dep-amt">Amount (USD, min 10)</label>
+            <h2><LocalizedText source={"Details"} /></h2>
+            <label htmlFor="dep-amt"><LocalizedText source={"Amount (USD, min 10)"} /></label>
             <input id="dep-amt" type="number" min="10" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
             {method === 'wise' && (
               <>
-                <label htmlFor="wise">Wise email</label>
+                <label htmlFor="wise"><LocalizedText source={"Wise email"} /></label>
                 <input id="wise" value={extra} onChange={(e) => setExtra(e.target.value)} />
               </>
             )}
             {method === 'bank' && (
               <>
-                <label htmlFor="bank">Bank name</label>
+                <label htmlFor="bank"><LocalizedText source={"Bank name"} /></label>
                 <input id="bank" value={extra} onChange={(e) => setExtra(e.target.value)} />
               </>
             )}
             {method === 'transfer' && (
               <>
-                <label htmlFor="pea">Account email</label>
+                <label htmlFor="pea"><LocalizedText source={"Account email"} /></label>
                 <input id="pea" value={extra} onChange={(e) => setExtra(e.target.value)} />
               </>
             )}
@@ -179,14 +182,14 @@ export default function Deposit() {
               <>
                 {method === 'crypto' && (
                   <>
-                    <label htmlFor="coin">Coin</label>
+                    <label htmlFor="coin"><LocalizedText source={"Coin"} /></label>
                     <select id="coin" value={coin} onChange={(e) => { setCoin(e.target.value); setNetwork(e.target.value === 'BTC' ? 'BTC' : 'TRC20'); }}>
                       <option value="USDT">USDT</option>
                       <option value="BTC">BTC</option>
                     </select>
                   </>
                 )}
-                <label htmlFor="net">Network</label>
+                <label htmlFor="net"><LocalizedText source={"Network"} /></label>
                 <select id="net" value={network} onChange={(e) => setNetwork(e.target.value)}>
                   {(method === 'crypto' ? NETWORKS.crypto[coin] : NETWORKS.instant).map((n) => (
                     <option key={n} value={n}>{n}</option>
@@ -195,10 +198,10 @@ export default function Deposit() {
                 {addressMatches ? (
                   <div className="card" style={{ marginTop: 12 }}>
                     <div className="deposit-address-heading">
-                      <div className="meta">Send to this address</div>
+                      <div className="meta"><LocalizedText source={"Send to this address"} /></div>
                       <button type="button" className="text-btn" aria-pressed={showDepositAddress}
                         onClick={() => setShowDepositAddress((value) => !value)}>
-                        {showDepositAddress ? 'Hide' : 'Show'}
+                        {showDepositAddress ? (<LocalizedText source={"Hide"} />) : (<LocalizedText source={"Show"} />)}
                       </button>
                     </div>
                     <p className="payin-addr">{showDepositAddress ? depositAddress : hideAddress(depositAddress)}</p>
@@ -206,44 +209,42 @@ export default function Deposit() {
                 ) : <p className="meta deposit-address-missing">
                   {depositAddress
                     ? `Your assigned address is for ${workerDepositWallet.cryptocurrency} · ${workerDepositWallet.network}. Choose that network or contact support.`
-                    : 'No deposit address is assigned to your account yet. Contact support before sending funds.'}
+                    : (<LocalizedText source={"No deposit address is assigned to your account yet. Contact support before sending funds."} />)}
                 </p>}
-                <label htmlFor="tx">Transaction hash</label>
+                <label htmlFor="tx"><LocalizedText source={"Transaction hash"} /></label>
                 <input id="tx" value={txRef} onChange={(e) => setTxRef(e.target.value)} />
-                <label htmlFor="deposit-proof">Transfer screenshot</label>
+                <label htmlFor="deposit-proof"><LocalizedText source={"Transfer screenshot"} /></label>
                 <input id="deposit-proof" type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(e) => chooseProof(e.target.files?.[0])}
                   aria-describedby="deposit-proof-hint" required={needsProof} />
-                <p id="deposit-proof-hint" className="meta">Attach an image of the completed transfer (up to 5 MB).</p>
-                {proofFile ? <p className="meta">Selected: {proofFile.name}</p> : null}
+                <p id="deposit-proof-hint" className="meta"><LocalizedText source={"Attach an image of the completed transfer (up to 5 MB)."} /></p>
+                {proofFile ? <p className="meta"><LocalizedText source={"Selected:"} />{' '}{proofFile.name}</p> : null}
               </>
             )}
-            <label htmlFor="notes">Notes</label>
+            <label htmlFor="notes"><LocalizedText source={"Notes"} /></label>
             <textarea id="notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </>
         )}
         {step === 2 && (
           <>
-            <h2>Review</h2>
+            <h2><LocalizedText source={"Review"} /></h2>
             <div className="card">
-              <p><b>{money(amount)}</b> via {METHODS.find((m) => m.id === method)?.label}</p>
+              <p><b>{money(amount)}</b>{' '}<LocalizedText source={"via"} />{' '}{trText(METHODS.find((m) => m.id === method)?.label || '', METHODS.find((m) => m.id === method)?.label || '')}</p>
               {network && (method === 'crypto' || method === 'instant') ? <p className="meta">{coin} · {network}</p> : null}
               {txRef ? <p className="meta">{txRef}</p> : null}
               {extra ? <p className="meta">{extra}</p> : null}
-              {proofFile ? <p className="meta">Transfer proof attached: {proofFile.name}</p> : null}
-              <p className="meta">Pending until an admin approves.</p>
+              {proofFile ? <p className="meta"><LocalizedText source={"Transfer proof attached:"} />{' '}{proofFile.name}</p> : null}
+              <p className="meta"><LocalizedText source={"Pending until an admin approves."} /></p>
             </div>
           </>
         )}
         {error ? <p className="error">{error}</p> : null}
         <div className="wiz-nav">
-          {step > 0 ? <button type="button" className="ghost" onClick={() => setStep(step - 1)}>Back</button> : null}
+          {step > 0 ? <button type="button" className="ghost" onClick={() => setStep(step - 1)}><LocalizedText source={"Back"} /></button> : null}
           {step < 2 ? (
-            <button type="button" className="primary" disabled={!canNext()} onClick={() => setStep(step + 1)}>Next</button>
+            <button type="button" className="primary" disabled={!canNext()} onClick={() => setStep(step + 1)}><LocalizedText source={"Next"} /></button>
           ) : (
             <button type="button" className="primary" disabled={busy} onClick={submit}>
-              {busy ? <Spinner size={18} /> : null}
-              Submit
-            </button>
+              {busy ? <Spinner size={18} /> : null}<LocalizedText source={"Submit"} /></button>
           )}
         </div>
       </div>

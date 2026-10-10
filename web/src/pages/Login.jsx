@@ -1,3 +1,4 @@
+import { LocalizedText } from '../i18n.jsx';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, setToken } from '../api.js';
@@ -43,16 +44,16 @@ export default function Login({ onLogin }) {
         <h1>AI Workstation</h1>
         <p className="meta">
           {mode === 'login'
-            ? 'Sign in with your account details.'
-            : 'Worker accounts only.'}
+            ? (<LocalizedText source={"Sign in with your account details."} />)
+            : (<LocalizedText source={"Worker accounts only."} />)}
         </p>
         {mode === 'register' && (
           <>
-            <label htmlFor="display_name">Name</label>
+            <label htmlFor="display_name"><LocalizedText source={"Name"} /></label>
             <input id="display_name" name="display_name" autoComplete="name" required />
           </>
         )}
-        <label htmlFor="email">Email</label>
+        <label htmlFor="email"><LocalizedText source={"Email"} /></label>
         <input
           id="email"
           name="email"
@@ -61,7 +62,7 @@ export default function Login({ onLogin }) {
           autoComplete="username"
           required
         />
-        <label htmlFor="password">Password</label>
+        <label htmlFor="password"><LocalizedText source={"Password"} /></label>
         <div className="password-field">
           <input
             id="password"
@@ -79,13 +80,13 @@ export default function Login({ onLogin }) {
             aria-pressed={showPassword}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
           >
-            {showPassword ? 'Hide' : 'Show'}
+            {showPassword ? (<LocalizedText source={"Hide"} />) : (<LocalizedText source={"Show"} />)}
           </button>
         </div>
         {error ? <p className="error">{error}</p> : null}
         <button className="primary" type="submit" disabled={busy}>
           {busy ? <Spinner size={18} /> : null}
-          {mode === 'login' ? 'Sign in' : 'Create account'}
+          {mode === 'login' ? (<LocalizedText source={"Sign in"} />) : (<LocalizedText source={"Create account"} />)}
         </button>
         <button
           type="button"
@@ -95,7 +96,7 @@ export default function Login({ onLogin }) {
             setError('');
           }}
         >
-          {mode === 'login' ? 'Register' : 'Sign in'}
+          {mode === 'login' ? (<LocalizedText source={"Register"} />) : (<LocalizedText source={"Sign in"} />)}
         </button>
       </form>
     </div>

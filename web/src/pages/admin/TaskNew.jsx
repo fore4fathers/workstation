@@ -1,9 +1,12 @@
+import { LocalizedText } from '../../i18n.jsx';
+import { useLanguage } from '../../i18n.jsx';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, uploadImages } from '../../api.js';
 import { itemLabels, itemPreview, parseItemLines } from '../../format.js';
 
 export default function TaskNew() {
+  const { t: trText } = useLanguage();
   const navigate = useNavigate();
   const [type, setType] = useState('image');
   const [paste, setPaste] = useState('');
@@ -94,8 +97,8 @@ export default function TaskNew() {
 
   return (
     <form className="card" style={{ maxWidth: 760 }} onSubmit={onSubmit}>
-      <h2>New task</h2>
-      <label htmlFor="type">Type</label>
+      <h2><LocalizedText source={"New task"} /></h2>
+      <label htmlFor="type"><LocalizedText source={"Type"} /></label>
       <select
         id="type"
         name="type"
@@ -107,57 +110,57 @@ export default function TaskNew() {
           setDefaultLabels(next === 'image' ? 'cat, dog, bird' : next === 'text' ? 'positive, negative, neutral' : 'book_flight, cancel, other');
         }}
       >
-        <option value="image">Image labeling</option>
-        <option value="text">Text annotation</option>
-        <option value="intent">Intent classification</option>
+        <option value="image"><LocalizedText source={"Image labeling"} /></option>
+        <option value="text"><LocalizedText source={"Text annotation"} /></option>
+        <option value="intent"><LocalizedText source={"Intent classification"} /></option>
       </select>
-      <label htmlFor="title">Title</label>
+      <label htmlFor="title"><LocalizedText source={"Title"} /></label>
       <input id="title" name="title" required />
-      <label htmlFor="description">Description</label>
+      <label htmlFor="description"><LocalizedText source={"Description"} /></label>
       <input id="description" name="description" />
       <div className="two-col">
         <div>
-          <label htmlFor="pay">Pay (USD)</label>
+          <label htmlFor="pay"><LocalizedText source={"Pay (USD)"} /></label>
           <input id="pay" name="pay" type="number" step="0.01" defaultValue="0.85" />
         </div>
         <div>
-          <label htmlFor="est">Est. minutes</label>
+          <label htmlFor="est"><LocalizedText source={"Est. minutes"} /></label>
           <input id="est" name="est" type="number" defaultValue="5" />
         </div>
       </div>
 
-      <h3>Items</h3>
-      <p className="meta"><code>payload | labels | gold</code></p>
+      <h3><LocalizedText source={"Items"} /></h3>
+      <p className="meta"><code><LocalizedText source={"payload | labels | gold"} /></code></p>
       {type === 'image' && (
         <>
-          <label htmlFor="defaultLabels">Default labels for uploaded images</label>
+          <label htmlFor="defaultLabels"><LocalizedText source={"Default labels for uploaded images"} /></label>
           <input
             id="defaultLabels"
             value={defaultLabels}
             onChange={(e) => setDefaultLabels(e.target.value)}
             placeholder={labelsHint}
           />
-          <label htmlFor="images">Upload images</label>
+          <label htmlFor="images"><LocalizedText source={"Upload images"} /></label>
           <input id="images" type="file" accept="image/*" multiple onChange={onImages} />
         </>
       )}
-      <label htmlFor="csv">CSV file</label>
+      <label htmlFor="csv"><LocalizedText source={"CSV file"} /></label>
       <input id="csv" type="file" accept=".csv,text/csv,text/plain" onChange={onCsv} />
-      <label htmlFor="items">Paste items (one per line)</label>
+      <label htmlFor="items"><LocalizedText source={"Paste items (one per line)"} /></label>
       <textarea
         id="items"
         rows={6}
         value={paste}
         onChange={(e) => setPaste(e.target.value)}
         onBlur={() => applyPaste()}
-        placeholder="payload | label1,label2 | gold"
+        placeholder={trText("payload | label1,label2 | gold")}
       />
-      <button type="button" className="ghost" onClick={() => applyPaste()}>Preview</button>
+      <button type="button" className="ghost" onClick={() => applyPaste()}><LocalizedText source={"Preview"} /></button>
 
       {items.length ? (
         <table className="table" style={{ marginTop: 16 }}>
           <thead>
-            <tr><th>Payload</th><th>Labels</th><th>Gold</th><th /></tr>
+            <tr><th><LocalizedText source={"Payload"} /></th><th><LocalizedText source={"Labels"} /></th><th><LocalizedText source={"Gold"} /></th><th /></tr>
           </thead>
           <tbody>
             {items.map((it, i) => (
@@ -178,15 +181,15 @@ export default function TaskNew() {
                     onChange={(e) => updateItem(i, { gold: e.target.value || null })}
                   />
                 </td>
-                <td><button type="button" className="ghost" onClick={() => removeItem(i)}>Remove</button></td>
+                <td><button type="button" className="ghost" onClick={() => removeItem(i)}><LocalizedText source={"Remove"} /></button></td>
               </tr>
             ))}
           </tbody>
         </table>
-      ) : <p className="meta">No items.</p>}
+      ) : <p className="meta"><LocalizedText source={"No items."} /></p>}
 
       {error ? <p className="error">{error}</p> : null}
-      <button className="primary" type="submit" disabled={busy}>{busy ? 'Creating' : 'Create'}</button>
+      <button className="primary" type="submit" disabled={busy}>{busy ? (<LocalizedText source={"Creating"} />) : (<LocalizedText source={"Create"} />)}</button>
     </form>
   );
 }

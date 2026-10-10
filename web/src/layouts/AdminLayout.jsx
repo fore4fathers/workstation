@@ -1,22 +1,25 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { logout } from '../session.js';
 import { useCompactHeader } from '../useCompactHeader.js';
+import { LanguageToggle, useLanguage } from '../i18n.jsx';
 
 const links = [
-  { to: '/', label: 'Home', end: true },
-  { to: '/tasks', label: 'Tasks' },
-  { to: '/payouts', label: 'Payouts' },
-  { to: '/wallet', label: 'Withdrawals' },
-  { to: '/deposits', label: 'Deposits' },
-  { to: '/workers', label: 'Workers' },
-  { to: '/drive-sets', label: 'Label Sets' },
-  { to: '/inbox', label: 'Inbox' },
-  { to: '/profile', label: 'Profile' },
+  { to: '/', label: 'Home', key: 'admin.home', end: true },
+  { to: '/tasks', label: 'Tasks', key: 'admin.tasks' },
+  { to: '/payouts', label: 'Payouts', key: 'admin.payouts' },
+  { to: '/wallet', label: 'Withdrawals', key: 'admin.withdrawals' },
+  { to: '/deposits', label: 'Deposits', key: 'admin.deposits' },
+  { to: '/workers', label: 'Workers', key: 'admin.workers' },
+  { to: '/drive-sets', label: 'Label Sets', key: 'nav.labelSets' },
+  { to: '/inbox', label: 'Inbox', key: 'admin.inbox' },
+  { to: '/profile', label: 'Profile', key: 'nav.profile' },
 ];
 
 export default function AdminLayout({ session }) {
+  const { t: trText } = useLanguage();
   const navigate = useNavigate();
   const compact = useCompactHeader();
+  const { t } = useLanguage();
 
   return (
     <div className={`admin-shell${compact ? ' is-compact' : ''}`}>
@@ -25,14 +28,17 @@ export default function AdminLayout({ session }) {
           <img src="/engagesphere-logo.png" alt="" />
           EngageSphere
         </NavLink>
-        <nav className="site-nav-links admin-links" aria-label="Admin">
+        <nav className="site-nav-links admin-links" aria-label={trText("Admin")}>
           {links.map((l) => (
             <NavLink key={l.to} to={l.to} end={l.end} className={({ isActive }) => (isActive ? 'active' : '')}>
-              {l.label}
+              {t(l.key, l.label)}
             </NavLink>
           ))}
         </nav>
-        <button type="button" className="ghost nav-logout" onClick={() => logout(navigate)}>Log out</button>
+        <div className="admin-nav-actions">
+          <LanguageToggle />
+          <button type="button" className="ghost nav-logout" onClick={() => logout(navigate)}>{t('admin.logOut')}</button>
+        </div>
       </header>
       <main className="admin-main">
         <Outlet context={{ session }} />
