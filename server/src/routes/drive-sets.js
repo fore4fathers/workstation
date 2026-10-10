@@ -4,7 +4,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { dollarsFromCents } from '../auth.js';
 
 const COMMISSION_CENTS_DEFAULT = 50;
-const CIVITAI_PROMPT_FILTER = `nsfw_level = 'None' AND NULLIF(BTRIM(prompt), '') IS NOT NULL`;
+const CIVITAI_PROMPT_FILTER = `type = 'image' AND nsfw_level = 'None' AND NULLIF(BTRIM(prompt), '') IS NOT NULL`;
 
 async function isCivitaiBackedTask(taskId) {
   const { rows } = await query(

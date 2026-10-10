@@ -9,7 +9,7 @@ import { clampTier, tierInfo } from '../tiers.js';
 import { config } from '../config.js';
 import { saveImageUpload } from '../uploads.js';
 
-const CIVITAI_PROMPT_FILTER = `nsfw_level = 'None' AND NULLIF(BTRIM(prompt), '') IS NOT NULL`;
+const CIVITAI_PROMPT_FILTER = `type = 'image' AND nsfw_level = 'None' AND NULLIF(BTRIM(prompt), '') IS NOT NULL`;
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth, requireAdmin);

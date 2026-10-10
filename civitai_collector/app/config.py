@@ -1,6 +1,7 @@
 """Configuration settings for the Civitai image collector."""
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -12,7 +13,10 @@ BASE_URL = "https://civitai.com/api/v1"
 TOKEN = os.getenv("CIVITAI_TOKEN", "")
 
 # Image storage configuration
-IMAGE_DIR = os.getenv("IMAGE_DIR", "./data/images")
+IMAGE_DIR = os.getenv(
+    "IMAGE_DIR",
+    str(Path(__file__).resolve().parents[1] / "data" / "images"),
+)
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "100"))
 
 # Database configuration

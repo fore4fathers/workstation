@@ -146,6 +146,41 @@ CREATE TABLE IF NOT EXISTS platform_deposit_addresses (
   UNIQUE (cryptocurrency, network)
 );
 
+CREATE TABLE IF NOT EXISTS images (
+  id BIGSERIAL PRIMARY KEY,
+  civitai_id BIGINT UNIQUE NOT NULL,
+  post_id BIGINT,
+  creator_id BIGINT,
+  creator_username TEXT,
+  source_url TEXT NOT NULL,
+  local_path TEXT,
+  width INTEGER,
+  height INTEGER,
+  nsfw_level TEXT,
+  type TEXT,
+  blurhash TEXT,
+  prompt TEXT,
+  negative_prompt TEXT,
+  model_name TEXT,
+  model_version_id BIGINT,
+  sampler TEXT,
+  steps INTEGER,
+  cfg_scale DOUBLE PRECISION,
+  seed BIGINT,
+  created_at TIMESTAMPTZ,
+  sha256 CHAR(64) UNIQUE,
+  metadata JSONB,
+  downloaded BOOLEAN NOT NULL DEFAULT FALSE,
+  download_error TEXT,
+  discovered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_images_post_id ON images(post_id);
+CREATE INDEX IF NOT EXISTS idx_images_model_version ON images(model_version_id);
+CREATE INDEX IF NOT EXISTS idx_images_creator ON images(creator_username);
+CREATE INDEX IF NOT EXISTS idx_images_sha256 ON images(sha256);
+CREATE INDEX IF NOT EXISTS idx_images_metadata ON images USING GIN(metadata);
+
 CREATE TABLE IF NOT EXISTS daily_checkins (
   id                 SERIAL PRIMARY KEY,
   user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
