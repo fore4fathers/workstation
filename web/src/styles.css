@@ -328,6 +328,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .engagement-form-actions { display: flex; gap: 8px; }
 .active-engagements-card { margin-bottom: 20px; }
 .active-engagements-card .section-h { margin: 0 0 12px; }
+.drive-merged-products { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; width: 100%; }
+.drive-merged-products figure { margin: 0; min-width: 0; }
+.drive-merged-products figcaption { padding-top: 6px; text-align: center; color: var(--muted, #667085); font-size: 13px; }
 .table-scroll { overflow-x: auto; }
 @media (max-width: 600px) {
   .label-sets-heading-actions { align-items: flex-end; flex-direction: column; }

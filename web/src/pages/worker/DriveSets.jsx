@@ -1,6 +1,6 @@
 import { LocalizedText } from '../../i18n.jsx';
 import { useLanguage } from '../../i18n.jsx';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.js';
 import { money, when } from '../../format.js';
 
@@ -17,6 +17,11 @@ export default function WorkerDriveSets() {
   const [complete, setComplete] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [submissionNotice, setSubmissionNotice] = useState('');
+  const activeSetRef = useRef(null);
+  const currentIndexRef = useRef(0);
+
+  useEffect(() => { activeSetRef.current = activeSet; }, [activeSet]);
+  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
 
   useEffect(() => {
     if (!submissionNotice) return undefined;
@@ -32,6 +37,25 @@ export default function WorkerDriveSets() {
   useEffect(() => {
     load().catch((e) => setError(e.message));
   }, []);
+
+  useEffect(() => {
+    if (!activeSet?.id || activeSet.status !== 'active') return undefined;
+    const setId = activeSet.id;
+    const timer = window.setInterval(async () => {
+      try {
+        const latest = await api(`/api/worker/drive-sets/${setId}/items`);
+        if (activeSetRef.current?.id !== setId) return;
+        const previousItemId = activeSetRef.current.items[currentIndexRef.current]?.drive_set_item_id;
+        const latestItems = latest.items || [];
+        setActiveSet((prev) => prev?.id === setId ? { ...prev, ...latest.drive_set, items: latestItems } : prev);
+        const nextIndex = latestItems.findIndex((entry) => entry.drive_set_item_id === previousItemId);
+        if (nextIndex >= 0) setCurrentIndex(nextIndex);
+      } catch {
+        // Keep the loaded item available while the progress refresh retries.
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [activeSet?.id, activeSet?.status]);
 
   async function startSet(setId) {
     setError('');
@@ -74,12 +98,13 @@ export default function WorkerDriveSets() {
         method: 'POST',
         body: {
           drive_set_id: activeSet.id,
+          drive_set_item_id: item.drive_set_item_id,
           image_index: item.image_index,
           selected_label: response,
           response_type: foreignMode ? 'foreign_language' : 'caption_match',
         },
       });
-      const updatedItems = activeSet.items.map((entry, index) => index === currentIndex
+      const updatedItems = activeSet.items.map((entry) => entry.drive_set_item_id === item.drive_set_item_id
         ? { ...entry, selected_label: response, response_type: result.response_type, commission_cents: result.commission_cents }
         : entry);
       setActiveSet((prev) => ({
@@ -133,6 +158,7 @@ export default function WorkerDriveSets() {
     const answeredCount = Number(activeSet.answered_count || 0);
     const hasAnswer = selectedLabel != null;
     const earned = Number(activeSet.total_commission || 0) / 100;
+    const mergedProducts = item.merge_products?.length > 1 ? item.merge_products : null;
     return (
       <div className="card drive-trainer">
         <div className="section-h drive-trainer-header">
@@ -152,8 +178,12 @@ export default function WorkerDriveSets() {
             <span className="spinner" style={{ width: 32, height: 32 }} />
             <span><LocalizedText source={"Loading image…"} /></span>
           </div> : null}
-          <img key={`${activeSet.id}:${item.image_index}`} className="drive-trainer-image" src={item.image_url}
-            alt={trText("Image labeling item")} onLoad={() => setImageLoading(false)} onError={() => setImageLoading(false)} />
+          {mergedProducts ? <div className="drive-merged-products">{mergedProducts.map((product, index) => <figure key={`${product.image_url}-${index}`}>
+            <img className="drive-trainer-image" src={product.image_url} alt={product.title || `Product ${index + 1}`}
+              onLoad={() => setImageLoading(false)} onError={() => setImageLoading(false)} />
+            <figcaption>{product.title || `Product ${index + 1}`}</figcaption>
+          </figure>)}</div> : <img key={`${activeSet.id}:${item.drive_set_item_id}`} className="drive-trainer-image" src={item.image_url}
+            alt={trText("Image labeling item")} onLoad={() => setImageLoading(false)} onError={() => setImageLoading(false)} />}
         </div>
         <h3>{activeSet.civitai_backed
           ? (<LocalizedText source={"Which generation caption best matches this image?"} />)

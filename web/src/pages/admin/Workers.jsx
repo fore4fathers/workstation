@@ -35,8 +35,20 @@ export default function AdminWorkers() {
   }
 
   async function loadEngagements() {
-    const data = await api('/api/admin/engagements');
-    setEngagements(data.engagements || []);
+    const [tasks, drives] = await Promise.all([
+      api('/api/admin/engagements'),
+      api('/api/admin/drive-sets/active-progress'),
+    ]);
+    setEngagements([
+      ...(tasks.engagements || []).map((item) => ({ ...item, workflow: 'assignment' })),
+      ...(drives.engagements || []),
+    ]);
+  }
+
+  function progressUrl(workflow, id) {
+    return workflow === 'drive_set'
+      ? `/api/admin/drive-sets/${id}/progress`
+      : `/api/admin/engagements/${id}`;
   }
 
   useEffect(() => {
@@ -46,10 +58,10 @@ export default function AdminWorkers() {
     return () => window.clearInterval(timer);
   }, []);
 
-  async function openEngagement(assignmentId) {
+  async function openEngagement(engagement) {
     setMergeError('');
     try {
-      const details = await api(`/api/admin/engagements/${assignmentId}`);
+      const details = await api(progressUrl(engagement.workflow, engagement.assignment_id));
       setEngagementDetails(details);
       const target = details.items.find((item) => item.is_current && !item.is_completed)
         || details.items.find((item) => !item.is_completed);
@@ -63,9 +75,10 @@ export default function AdminWorkers() {
   useEffect(() => {
     const assignmentId = engagementDetails?.engagement?.assignment_id;
     if (!assignmentId) return undefined;
+    const url = progressUrl(engagementDetails.engagement.workflow, assignmentId);
     const refresh = async () => {
       try {
-        const details = await api(`/api/admin/engagements/${assignmentId}`);
+        const details = await api(url);
         setEngagementDetails(details);
       } catch (err) {
         setMergeError(err.message);
@@ -73,16 +86,17 @@ export default function AdminWorkers() {
     };
     const timer = window.setInterval(refresh, 5000);
     return () => window.clearInterval(timer);
-  }, [engagementDetails?.engagement?.assignment_id]);
+  }, [engagementDetails?.engagement?.assignment_id, engagementDetails?.engagement?.workflow]);
 
   async function addMergeProduct(event) {
     event.preventDefault();
     const assignmentId = engagementDetails?.engagement?.assignment_id;
     if (!assignmentId || !selectedItemId) return;
+    const baseUrl = progressUrl(engagementDetails.engagement.workflow, assignmentId).replace(/\/progress$/, '');
     setBusy('merge');
     setMergeError('');
     try {
-      await api(`/api/admin/engagements/${assignmentId}/merge`, {
+      await api(`${baseUrl}/merge`, {
         method: 'POST',
         body: {
           item_id: Number(selectedItemId),
@@ -90,7 +104,7 @@ export default function AdminWorkers() {
           bonus_cents: Math.round(Number(mergeBonus) * 100),
         },
       });
-      const details = await api(`/api/admin/engagements/${assignmentId}`);
+      const details = await api(progressUrl(engagementDetails.engagement.workflow, assignmentId));
       setEngagementDetails(details);
       setMergeTitle('');
       setMergeImageUrl('');
@@ -120,10 +134,11 @@ export default function AdminWorkers() {
     event.preventDefault();
     const assignmentId = engagementDetails?.engagement?.assignment_id;
     if (!assignmentId || !selectedItemId) return;
+    const baseUrl = progressUrl(engagementDetails.engagement.workflow, assignmentId).replace(/\/progress$/, '');
     setBusy('item');
     setMergeError('');
     try {
-      await api(`/api/admin/engagements/${assignmentId}/items`, {
+      await api(`${baseUrl}/items`, {
         method: 'POST',
         body: {
           after_item_id: Number(selectedItemId),
@@ -133,7 +148,7 @@ export default function AdminWorkers() {
           bonus_cents: Math.round(Number(itemBonus || 0) * 100),
         },
       });
-      setEngagementDetails(await api(`/api/admin/engagements/${assignmentId}`));
+      setEngagementDetails(await api(progressUrl(engagementDetails.engagement.workflow, assignmentId)));
       setMergeTitle('');
       setMergeImageUrl('');
       setItemAction(null);
@@ -149,14 +164,15 @@ export default function AdminWorkers() {
     event.preventDefault();
     const assignmentId = engagementDetails?.engagement?.assignment_id;
     if (!assignmentId || !selectedItemId) return;
+    const baseUrl = progressUrl(engagementDetails.engagement.workflow, assignmentId).replace(/\/progress$/, '');
     setBusy('change');
     setMergeError('');
     try {
-      await api(`/api/admin/engagements/${assignmentId}/items/${selectedItemId}/product`, {
+      await api(`${baseUrl}/items/${selectedItemId}/product`, {
         method: 'PUT',
         body: { title: mergeTitle, image_url: mergeImageUrl },
       });
-      setEngagementDetails(await api(`/api/admin/engagements/${assignmentId}`));
+      setEngagementDetails(await api(progressUrl(engagementDetails.engagement.workflow, assignmentId)));
       setItemAction(null);
       await loadEngagements();
     } catch (err) {
@@ -224,12 +240,12 @@ export default function AdminWorkers() {
         <div className="section-h"><div><h3>Active engagements</h3><p className="meta">Live worker position refreshes every 5 seconds.</p></div><span className="pill">{engagements.length} active</span></div>
         {engagements.length ? <div className="table-scroll"><table className="table">
           <thead><tr><th>Worker</th><th>Engagement</th><th>Position</th><th>Progress</th><th /></tr></thead>
-          <tbody>{engagements.map((engagement) => <tr key={engagement.assignment_id}>
+          <tbody>{engagements.map((engagement) => <tr key={`${engagement.workflow}:${engagement.assignment_id}`}>
             <td>{engagement.display_name}<div className="meta">{engagement.email}</div></td>
-            <td>{engagement.task_title}</td>
+            <td>{engagement.task_title}<div className="meta">{engagement.workflow === 'drive_set' ? 'Label Set' : 'Task'}</div></td>
             <td>{engagement.current_sort_order == null ? 'Starting' : `Item ${engagement.current_sort_order + 1} of ${engagement.item_count}`}</td>
             <td>{engagement.completed_items} / {engagement.item_count} complete</td>
-            <td><button type="button" className="primary small" onClick={() => openEngagement(engagement.assignment_id)}>View progress</button></td>
+            <td><button type="button" className="primary small" onClick={() => openEngagement(engagement)}>View progress</button></td>
           </tr>)}</tbody>
         </table></div> : <p className="meta">No workers are currently in an engagement.</p>}
       </section>
@@ -322,9 +338,15 @@ export default function AdminWorkers() {
             <div className="engagement-progress-summary">
               <span>Current position: <b>{activeEngagement.current_sort_order == null ? 'Starting' : `Item ${activeEngagement.current_sort_order + 1} of ${engagementDetails.items.length}`}</b></span>
               <span>Completed: <b>{completedItemCount} / {engagementDetails.items.length}</b></span>
-              <span>Base reward: <b>{money(activeEngagement.pay_dollars)}</b></span>
-              <span>Merge bonus: <b>{money(activeEngagement.bonus_dollars)}</b></span>
-              <span>Total before tier: <b>{money(activeEngagement.total_pay_dollars)}</b></span>
+              {activeEngagement.workflow === 'drive_set' ? <>
+                <span>Reward per response: <b>{money(activeEngagement.pay_dollars)}</b></span>
+                <span>Already earned: <b>{money(activeEngagement.earned_dollars)}</b></span>
+                <span>Merge bonus: <b>{money(activeEngagement.bonus_dollars)}</b></span>
+              </> : <>
+                <span>Base reward: <b>{money(activeEngagement.pay_dollars)}</b></span>
+                <span>Merge bonus: <b>{money(activeEngagement.bonus_dollars)}</b></span>
+                <span>Total before tier: <b>{money(activeEngagement.total_pay_dollars)}</b></span>
+              </>}
             </div>
             {mergeError ? <p className="error">{mergeError}</p> : null}
             <div className="engagement-items-list">

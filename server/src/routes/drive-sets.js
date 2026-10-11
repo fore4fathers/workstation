@@ -32,12 +32,48 @@ async function getCivitaiItems(limit) {
   }));
 }
 
-async function getSetItems(set) {
-  if (set.civitai_backed) return getCivitaiItems(set.total_items);
-  const { rows } = await query(
-    'SELECT id, payload FROM task_items WHERE task_id = $1 ORDER BY sort_order, id LIMIT $2',
-    [set.task_id, set.total_items],
+export async function getSetItems(set) {
+  const { rows: existing } = await query(
+    'SELECT id, source_item_id, image_index, sort_order, payload, bonus_cents FROM drive_set_items WHERE drive_set_id = $1 ORDER BY sort_order, id',
+    [set.id],
   );
+  if (existing.length < Number(set.total_items)) {
+    const missingCount = Number(set.total_items) - existing.length;
+    let sourceItems;
+    if (set.civitai_backed) sourceItems = await getCivitaiItems(set.total_items);
+    else {
+      const { rows } = await query(
+        'SELECT id, payload FROM task_items WHERE task_id = $1 ORDER BY sort_order, id LIMIT $2',
+        [set.task_id, set.total_items],
+      );
+      sourceItems = rows;
+    }
+    const occupiedIndexes = new Set(existing.map((item) => Number(item.image_index)));
+    const occupiedOrders = new Set(existing.map((item) => Number(item.sort_order)));
+    const candidates = sourceItems.map((item, index) => ({ ...item, sourceIndex: index }))
+      .filter((item) => !occupiedIndexes.has(item.sourceIndex) && !occupiedOrders.has(item.sourceIndex))
+      .slice(0, missingCount);
+    for (const item of candidates) {
+      await query(
+        `INSERT INTO drive_set_items (drive_set_id, source_item_id, image_index, sort_order, payload)
+         VALUES ($1, $2, $3, $3, $4) ON CONFLICT DO NOTHING`,
+        [set.id, set.civitai_backed ? null : item.id, item.sourceIndex, item.payload],
+      );
+    }
+  }
+  const { rows } = await query(
+    'SELECT id, source_item_id, image_index, sort_order, payload, bonus_cents FROM drive_set_items WHERE drive_set_id = $1 ORDER BY sort_order, id',
+    [set.id],
+  );
+  if (rows.length) {
+    await query(
+      `UPDATE image_commissions c SET drive_set_item_id = i.id
+       FROM drive_set_items i
+       WHERE c.drive_set_id = $1 AND i.drive_set_id = c.drive_set_id
+         AND i.image_index = c.image_index AND c.drive_set_item_id IS NULL`,
+      [set.id],
+    );
+  }
   return rows;
 }
 
@@ -122,19 +158,24 @@ driveSetsRouter.get('/:id/items', async (req, res) => {
   if (!set) return res.status(404).json({ error: 'drive set not found' });
   const rows = await getSetItems(set);
   const { rows: answers } = await query(
-    'SELECT image_index, selected_label, response_type, commission_cents FROM image_commissions WHERE drive_set_id = $1',
+    'SELECT drive_set_item_id, selected_label, response_type, commission_cents FROM image_commissions WHERE drive_set_id = $1',
     [set.id],
   );
-  const answeredByIndex = new Map(answers.map((answer) => [Number(answer.image_index), answer]));
+  const answeredByItem = new Map(answers.map((answer) => [Number(answer.drive_set_item_id), answer]));
   res.json({
     drive_set: set,
-    items: rows.map((row, index) => {
-      const answer = answeredByIndex.get(index);
+    items: rows.map((row) => {
+      const answer = answeredByItem.get(Number(row.id));
       return {
         item_id: row.id,
-        image_index: index,
+        drive_set_item_id: row.id,
+        image_index: row.image_index,
+        sort_order: row.sort_order,
+        bonus_cents: row.bonus_cents,
+        payload: row.payload,
+        merge_products: row.payload?.merge_products || null,
         image_url: row.payload?.image_url || row.payload?.imageUrl || row.payload?.url || row.payload?.src || '',
-        options: buildOptions(row.payload, `${set.id}:${index}`),
+        options: buildOptions(row.payload, `${set.id}:${row.image_index}`),
         selected_label: answer?.selected_label ?? null,
         response_type: answer?.response_type ?? null,
         commission_cents: Number(answer?.commission_cents || 0),
@@ -146,12 +187,13 @@ driveSetsRouter.get('/:id/items', async (req, res) => {
 driveSetsRouter.post('/answer', async (req, res) => {
   const driveSetId = Number(req.body?.drive_set_id);
   const imageIndex = Number(req.body?.image_index);
+  const driveSetItemId = Number(req.body?.drive_set_item_id);
   const selectedLabel = String(req.body?.selected_label || '');
   const responseType = req.body?.response_type === 'foreign_language'
     ? 'foreign_language'
     : 'caption_match';
-  if (!driveSetId || !Number.isInteger(imageIndex) || imageIndex < 0 || !selectedLabel.trim() || selectedLabel.length > 4000) {
-    return res.status(400).json({ error: 'drive_set_id, image_index, and a response under 4000 characters are required' });
+  if (!driveSetId || (!Number.isInteger(driveSetItemId) && (!Number.isInteger(imageIndex) || imageIndex < 0)) || !selectedLabel.trim() || selectedLabel.length > 4000) {
+    return res.status(400).json({ error: 'drive_set_id, item position, and a response under 4000 characters are required' });
   }
 
   const result = await withTransaction(async (client) => {
@@ -162,13 +204,14 @@ driveSetsRouter.post('/answer', async (req, res) => {
     const set = sets[0];
     if (!set) return { status: 404, body: { error: 'drive set not found' } };
     if (set.status !== 'active') return { status: 400, body: { error: 'drive set not active' } };
-    if (imageIndex >= set.total_items) return { status: 400, body: { error: 'image index out of range' } };
-
     const resolvedSet = { ...set, civitai_backed: await isCivitaiBackedTask(set.task_id) };
     const setItems = await getSetItems(resolvedSet);
-    const item = setItems[imageIndex];
+    const item = Number.isInteger(driveSetItemId)
+      ? setItems.find((row) => Number(row.id) === driveSetItemId)
+      : setItems.find((row) => Number(row.image_index) === imageIndex);
     if (!item) return { status: 404, body: { error: 'image not found' } };
-    const options = buildOptions(item.payload, `${set.id}:${imageIndex}`);
+    if (Number(item.sort_order) >= Number(set.total_items)) return { status: 400, body: { error: 'image index out of range' } };
+    const options = buildOptions(item.payload, `${set.id}:${item.image_index}`);
     if (responseType !== 'foreign_language' && !options.includes(selectedLabel)) {
       return { status: 400, body: { error: 'invalid caption option' } };
     }
@@ -178,27 +221,28 @@ driveSetsRouter.post('/answer', async (req, res) => {
     const storedResponseType = responseType === 'foreign_language'
       ? 'foreign_language'
       : bestMatch ? 'best_match' : 'alternative_match';
-    const commissionCents = responseType === 'foreign_language'
+    const baseCommissionCents = responseType === 'foreign_language'
       ? Number(set.commission_cents ?? COMMISSION_CENTS_DEFAULT)
       : bestMatch
         ? Number(set.commission_cents ?? COMMISSION_CENTS_DEFAULT)
         : Number(set.alternative_commission_cents ?? 25);
+    const commissionCents = baseCommissionCents + Number(item.bonus_cents || 0);
     const { rows: priorRows } = await client.query(
-      'SELECT commission_cents FROM image_commissions WHERE drive_set_id = $1 AND image_index = $2 FOR UPDATE',
-      [set.id, imageIndex],
+      'SELECT commission_cents FROM image_commissions WHERE drive_set_id = $1 AND drive_set_item_id = $2 FOR UPDATE',
+      [set.id, item.id],
     );
     const previousCents = Number(priorRows[0]?.commission_cents || 0);
     const balanceDelta = (commissionCents - previousCents) / 100;
 
     await client.query(
       `INSERT INTO image_commissions
-         (user_id, task_id, drive_set_id, image_index, selected_label, is_correct, commission_cents, response_type, answered_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
-       ON CONFLICT (drive_set_id, image_index) DO UPDATE SET
+         (user_id, task_id, drive_set_id, drive_set_item_id, image_index, selected_label, is_correct, commission_cents, response_type, answered_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+       ON CONFLICT (drive_set_id, drive_set_item_id) DO UPDATE SET
          selected_label = EXCLUDED.selected_label, is_correct = EXCLUDED.is_correct,
          commission_cents = EXCLUDED.commission_cents, response_type = EXCLUDED.response_type,
          answered_at = NOW()`,
-      [req.user.id, set.task_id, set.id, imageIndex, selectedLabel.trim(), bestMatch, commissionCents, storedResponseType],
+      [req.user.id, set.task_id, set.id, item.id, item.image_index, selectedLabel.trim(), bestMatch, commissionCents, storedResponseType],
     );
     if (balanceDelta) {
       await client.query('UPDATE accounts SET balance = balance + $1 WHERE user_id = $2', [balanceDelta, req.user.id]);

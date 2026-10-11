@@ -8,6 +8,7 @@ import { dollarsFromCents } from '../auth.js';
 import { clampTier, tierInfo } from '../tiers.js';
 import { config } from '../config.js';
 import { saveImageUpload } from '../uploads.js';
+import { getSetItems } from './drive-sets.js';
 
 const CIVITAI_PROMPT_FILTER = `type = 'image' AND nsfw_level = 'None' AND NULLIF(BTRIM(prompt), '') IS NOT NULL`;
 
@@ -856,6 +857,220 @@ adminRouter.post('/deposits/:id/reject', async (req, res) => {
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }
+});
+
+async function loadAdminDriveSet(id) {
+  const { rows } = await query(
+    `SELECT ds.*, u.display_name, u.email, u.tier, t.title AS task_title, t.type,
+            (SELECT COUNT(*)::int FROM image_commissions ic WHERE ic.drive_set_id = ds.id) AS completed_items,
+            (SELECT COALESCE(SUM(ic.commission_cents), 0)::int FROM image_commissions ic WHERE ic.drive_set_id = ds.id) AS earned_cents
+     FROM drive_sets ds JOIN users u ON u.id = ds.user_id JOIN tasks t ON t.id = ds.task_id
+     WHERE ds.id = $1`, [id],
+  );
+  const set = rows[0];
+  if (!set) return null;
+  const { rows: sourceCheck } = await query(
+    `SELECT COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE payload->>'image_url' ILIKE '%picsum.photos%')::int AS picsum_count
+     FROM task_items WHERE task_id = $1`, [set.task_id],
+  );
+  set.civitai_backed = sourceCheck[0].total > 0 && sourceCheck[0].total === sourceCheck[0].picsum_count;
+  const items = await getSetItems(set);
+  const { rows: itemRows } = await query(
+    `SELECT i.id, i.image_index, i.sort_order, i.payload, i.bonus_cents,
+            ic.selected_label, (ic.id IS NOT NULL) AS is_completed
+     FROM drive_set_items i
+     LEFT JOIN image_commissions ic ON ic.drive_set_id = i.drive_set_id AND ic.drive_set_item_id = i.id
+     WHERE i.drive_set_id = $1 ORDER BY i.sort_order, i.id`, [set.id],
+  );
+  const firstOpen = itemRows.find((item) => !item.is_completed);
+  return {
+    set,
+    items: itemRows.map((item) => ({
+      id: item.id,
+      sort_order: item.sort_order,
+      payload: item.payload,
+      answer: item.selected_label,
+      is_current: firstOpen?.id === item.id,
+      is_completed: item.is_completed,
+      bonus_cents: item.bonus_cents,
+    })),
+  };
+}
+
+adminRouter.get('/drive-sets/active-progress', async (_req, res) => {
+  const { rows } = await query(`SELECT id FROM drive_sets WHERE status = 'active' ORDER BY assigned_at DESC, id DESC`);
+  const activeSets = await Promise.all(rows.map((row) => loadAdminDriveSet(row.id)));
+  res.json({ engagements: activeSets.filter(Boolean).map(({ set, items }) => {
+    const current = items.find((item) => item.is_current);
+    const bonusCents = items.reduce((total, item) => total + Number(item.bonus_cents || 0), 0);
+    return {
+      workflow: 'drive_set',
+      assignment_id: set.id,
+      drive_set_id: set.id,
+      task_id: set.task_id,
+      worker_id: set.user_id,
+      display_name: set.display_name,
+      email: set.email,
+      task_title: set.civitai_backed ? 'Civitai Image Caption Labeling' : set.task_title,
+      type: set.type,
+      current_sort_order: current?.sort_order ?? null,
+      item_count: items.length,
+      completed_items: items.filter((item) => item.is_completed).length,
+      total_pay_dollars: dollarsFromCents(bonusCents + Number(set.earned_cents || 0)),
+      bonus_dollars: dollarsFromCents(bonusCents),
+      earned_dollars: dollarsFromCents(set.earned_cents),
+    };
+  }) });
+});
+
+adminRouter.get('/drive-sets/:id/progress', async (req, res) => {
+  const details = await loadAdminDriveSet(req.params.id);
+  if (!details) return res.status(404).json({ error: 'drive set not found' });
+  const { set } = details;
+  const bonusCents = details.items.reduce((total, item) => total + Number(item.bonus_cents || 0), 0);
+  res.json({
+    engagement: {
+      workflow: 'drive_set',
+      assignment_id: set.id,
+      drive_set_id: set.id,
+      task_id: set.task_id,
+      worker_id: set.user_id,
+      display_name: set.display_name,
+      email: set.email,
+      task_title: set.civitai_backed ? 'Civitai Image Caption Labeling' : set.task_title,
+      type: set.type,
+      status: set.status,
+      total_items: set.total_items,
+      current_sort_order: details.items.find((item) => item.is_current)?.sort_order ?? null,
+      pay_dollars: dollarsFromCents(set.commission_cents),
+      bonus_cents: bonusCents,
+      bonus_dollars: dollarsFromCents(bonusCents),
+      total_pay_dollars: dollarsFromCents(Number(set.earned_cents || 0) + bonusCents),
+      earned_dollars: dollarsFromCents(set.earned_cents),
+      alternative_rate_dollars: dollarsFromCents(set.alternative_commission_cents),
+    },
+    items: details.items,
+  });
+});
+
+adminRouter.post('/drive-sets/:id/merge', async (req, res) => {
+  const itemId = Number(req.body?.item_id);
+  const title = String(req.body?.product?.title || '').trim();
+  const imageUrl = String(req.body?.product?.image_url || '').trim();
+  const bonusCents = Number(req.body?.bonus_cents);
+  let parsedUrl;
+  try { parsedUrl = new URL(imageUrl); } catch { parsedUrl = null; }
+  if (!Number.isInteger(itemId) || itemId < 1 || !title || !parsedUrl || !['http:', 'https:'].includes(parsedUrl.protocol)
+      || !Number.isInteger(bonusCents) || bonusCents < 1) {
+    return res.status(400).json({ error: 'Choose an unfinished position, enter a valid product, and set a positive bonus.' });
+  }
+  try {
+    const result = await withTransaction(async (client) => {
+      const { rows: sets } = await client.query('SELECT id, status FROM drive_sets WHERE id = $1 FOR UPDATE', [req.params.id]);
+      const set = sets[0];
+      if (!set) { const err = new Error('drive set not found'); err.status = 404; throw err; }
+      if (set.status !== 'active') { const err = new Error('Only an active drive set can be changed.'); err.status = 409; throw err; }
+      const { rows: items } = await client.query(
+        `SELECT i.* , ic.id AS submission_id FROM drive_set_items i
+         LEFT JOIN image_commissions ic ON ic.drive_set_id = i.drive_set_id AND ic.drive_set_item_id = i.id
+         WHERE i.drive_set_id = $1 AND i.id = $2 FOR UPDATE OF i`, [set.id, itemId],
+      );
+      const item = items[0];
+      if (!item) { const err = new Error('That position is not part of this drive set.'); err.status = 404; throw err; }
+      if (item.submission_id) { const err = new Error('Completed positions cannot be changed.'); err.status = 409; throw err; }
+      const payload = item.payload;
+      const products = Array.isArray(payload.merge_products) && payload.merge_products.length
+        ? [...payload.merge_products]
+        : [{ title: payload.product_title || payload.title || 'Product', image_url: payload.image_url }];
+      if (!products[0].image_url || products.length >= 3) {
+        const err = new Error(products.length >= 3 ? 'A merge can contain at most three products.' : 'The selected item has no product image.'); err.status = 400; throw err;
+      }
+      products.push({ title, image_url: imageUrl });
+      const { rows: saved } = await client.query(
+        `UPDATE drive_set_items SET payload = $1, bonus_cents = bonus_cents + $2, updated_at = NOW()
+         WHERE id = $3 RETURNING id, bonus_cents`, [{ ...payload, merge_products: products }, bonusCents, item.id],
+      );
+      return saved[0];
+    });
+    res.status(201).json({ item: result });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message || 'Could not add merge product.' }); }
+});
+
+adminRouter.post('/drive-sets/:id/items', async (req, res) => {
+  const afterItemId = Number(req.body?.after_item_id);
+  const title = String(req.body?.title || '').trim();
+  const imageUrl = String(req.body?.image_url || '').trim();
+  const labels = Array.isArray(req.body?.labels) ? req.body.labels.map((label) => String(label).trim()).filter(Boolean) : [];
+  const bonusCents = Number(req.body?.bonus_cents || 0);
+  let parsedUrl;
+  try { parsedUrl = new URL(imageUrl); } catch { parsedUrl = null; }
+  if (!Number.isInteger(afterItemId) || afterItemId < 1 || !title || !parsedUrl || !['http:', 'https:'].includes(parsedUrl.protocol)
+      || !labels.length || !Number.isInteger(bonusCents) || bonusCents < 0) {
+    return res.status(400).json({ error: 'Choose a position, enter a valid product, add answer choices, and use a non-negative bonus.' });
+  }
+  try {
+    const result = await withTransaction(async (client) => {
+      const { rows: sets } = await client.query('SELECT id, status, total_items FROM drive_sets WHERE id = $1 FOR UPDATE', [req.params.id]);
+      const set = sets[0];
+      if (!set) { const err = new Error('drive set not found'); err.status = 404; throw err; }
+      if (set.status !== 'active') { const err = new Error('Only an active drive set can be changed.'); err.status = 409; throw err; }
+      const { rows: items } = await client.query(
+        `SELECT i.id, i.sort_order, ic.id AS submission_id FROM drive_set_items i
+         LEFT JOIN image_commissions ic ON ic.drive_set_id = i.drive_set_id AND ic.drive_set_item_id = i.id
+         WHERE i.drive_set_id = $1 AND i.id = $2 FOR UPDATE OF i`, [set.id, afterItemId],
+      );
+      const target = items[0];
+      if (!target) { const err = new Error('That position is not part of this drive set.'); err.status = 404; throw err; }
+      if (target.submission_id) { const err = new Error('Choose an unfinished position.'); err.status = 409; throw err; }
+      await client.query('UPDATE drive_set_items SET sort_order = sort_order + 1000000 WHERE drive_set_id = $1 AND sort_order > $2', [set.id, target.sort_order]);
+      await client.query('UPDATE drive_set_items SET sort_order = sort_order - 999999 WHERE drive_set_id = $1 AND sort_order >= 1000000', [set.id]);
+      const { rows: indexes } = await client.query('SELECT COALESCE(MAX(image_index), -1) + 1 AS image_index FROM drive_set_items WHERE drive_set_id = $1', [set.id]);
+      const payload = { product_title: title, image_url: imageUrl, labels, gold: labels[0] };
+      const { rows: inserted } = await client.query(
+        `INSERT INTO drive_set_items (drive_set_id, image_index, sort_order, payload, bonus_cents)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id, sort_order`,
+        [set.id, indexes[0].image_index, target.sort_order + 1, payload, bonusCents],
+      );
+      await client.query('UPDATE drive_sets SET total_items = total_items + 1 WHERE id = $1', [set.id]);
+      return inserted[0];
+    });
+    res.status(201).json({ item: result });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message || 'Could not add item.' }); }
+});
+
+adminRouter.put('/drive-sets/:id/items/:itemId/product', async (req, res) => {
+  const itemId = Number(req.params.itemId);
+  const title = String(req.body?.title || '').trim();
+  const imageUrl = String(req.body?.image_url || '').trim();
+  let parsedUrl;
+  try { parsedUrl = new URL(imageUrl); } catch { parsedUrl = null; }
+  if (!Number.isInteger(itemId) || itemId < 1 || !title || !parsedUrl || !['http:', 'https:'].includes(parsedUrl.protocol)) {
+    return res.status(400).json({ error: 'Enter a product name and valid image URL.' });
+  }
+  try {
+    const result = await withTransaction(async (client) => {
+      const { rows: sets } = await client.query('SELECT id, status FROM drive_sets WHERE id = $1 FOR UPDATE', [req.params.id]);
+      const set = sets[0];
+      if (!set) { const err = new Error('drive set not found'); err.status = 404; throw err; }
+      if (set.status !== 'active') { const err = new Error('Only an active drive set can be changed.'); err.status = 409; throw err; }
+      const { rows: items } = await client.query(
+        `SELECT i.* , ic.id AS submission_id FROM drive_set_items i
+         LEFT JOIN image_commissions ic ON ic.drive_set_id = i.drive_set_id AND ic.drive_set_item_id = i.id
+         WHERE i.drive_set_id = $1 AND i.id = $2 FOR UPDATE OF i`, [set.id, itemId],
+      );
+      const item = items[0];
+      if (!item) { const err = new Error('That position is not part of this drive set.'); err.status = 404; throw err; }
+      if (item.submission_id) { const err = new Error('Completed positions cannot be changed.'); err.status = 409; throw err; }
+      const payload = { ...item.payload, product_title: title, image_url: imageUrl };
+      if (Array.isArray(payload.merge_products) && payload.merge_products.length) {
+        payload.merge_products = [{ ...payload.merge_products[0], title, image_url: imageUrl }, ...payload.merge_products.slice(1)];
+      }
+      await client.query('UPDATE drive_set_items SET payload = $1, updated_at = NOW() WHERE id = $2', [payload, item.id]);
+      return { item_id: item.id, payload };
+    });
+    res.json({ item: result });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message || 'Could not change product.' }); }
 });
 
 adminRouter.get('/drive-sets', async (_req, res) => {
