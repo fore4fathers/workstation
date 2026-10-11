@@ -94,10 +94,23 @@ CREATE TABLE IF NOT EXISTS assignments (
   UNIQUE (task_id, worker_id)
 );
 
+CREATE TABLE IF NOT EXISTS assignment_items (
+  id            SERIAL PRIMARY KEY,
+  assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  source_item_id INTEGER REFERENCES task_items(id) ON DELETE SET NULL,
+  sort_order    INTEGER NOT NULL,
+  payload       JSONB NOT NULL,
+  bonus_cents   INTEGER NOT NULL DEFAULT 0 CHECK (bonus_cents >= 0),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (assignment_id, sort_order)
+);
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS current_assignment_item_id INTEGER REFERENCES assignment_items(id) ON DELETE SET NULL;
+
 CREATE TABLE IF NOT EXISTS submissions (
   id            SERIAL PRIMARY KEY,
   assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
-  item_id       INTEGER NOT NULL REFERENCES task_items(id) ON DELETE CASCADE,
+  item_id       INTEGER REFERENCES task_items(id) ON DELETE SET NULL,
+  assignment_item_id INTEGER REFERENCES assignment_items(id) ON DELETE CASCADE,
   answer        TEXT NOT NULL,
   is_correct    BOOLEAN,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),

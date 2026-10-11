@@ -308,23 +308,33 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   padding: 24px; border: 1px solid var(--line); border-radius: 14px;
   background: var(--surface); box-shadow: var(--shadow-float);
 }
+.engagement-progress-dialog { width: min(1140px, 100%); display: grid; gap: 16px; }
 .merge-viewer-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .merge-viewer-header h2 { margin: 0; font-size: 20px; }
 .merge-viewer-header .ghost { width: auto; flex-shrink: 0; }
-.merge-viewer-rewards { display: flex; gap: 12px; margin: 18px 0; }
-.merge-viewer-rewards > div { display: grid; gap: 4px; min-width: 180px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
-.merge-viewer-rewards b { font-family: var(--font-mono); font-size: 18px; }
-.merge-product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-.merge-product-card { min-width: 0; margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--canvas); }
-.merge-product-card img { display: block; width: 100%; height: min(48vh, 420px); object-fit: contain; background: #eef0f2; }
-.merge-product-card figcaption { display: grid; gap: 2px; padding: 10px 12px; }
-.merge-viewer-labels { display: grid; gap: 8px; margin: 16px 0; }
-.merge-viewer-labels > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.engagement-progress-summary { display: flex; flex-wrap: wrap; gap: 10px 20px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--canvas); }
+.engagement-items-list { display: grid; gap: 10px; max-height: 42vh; overflow: auto; }
+.engagement-item { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.engagement-item.is-current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.engagement-item.is-completed { opacity: .68; }
+.engagement-item-position { display: grid; gap: 6px; }
+.engagement-item-products { display: flex; flex-wrap: wrap; gap: 10px; }
+.engagement-product { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.engagement-product img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; background: var(--canvas); }
+.engagement-product > div { display: grid; }
+.engagement-item-actions { display: grid; justify-items: end; gap: 6px; }
+.engagement-merge-form { display: grid; gap: 12px; }
+.engagement-merge-form h3, .engagement-merge-form p { margin: 0; }
+.engagement-form-actions { display: flex; gap: 8px; }
+.active-engagements-card { margin-bottom: 20px; }
+.active-engagements-card .section-h { margin: 0 0 12px; }
+.table-scroll { overflow-x: auto; }
 @media (max-width: 600px) {
   .label-sets-heading-actions { align-items: flex-end; flex-direction: column; }
   .merge-viewer-backdrop { padding: 10px; }
   .merge-viewer-dialog { padding: 16px; }
-  .merge-viewer-rewards { flex-direction: column; }
+  .engagement-item { grid-template-columns: 1fr; }
+  .engagement-item-actions { display: flex; flex-wrap: wrap; justify-content: flex-start; }
 }
 .admin-worker-account { display: grid; gap: 14px; padding: 8px 18px 24px; }
 .admin-worker-account > .section-h { margin-top: 8px; }

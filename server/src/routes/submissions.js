@@ -46,11 +46,27 @@ submissionsRouter.post('/:id/submit', async (req, res) => {
         assignment = inserted.rows[0];
       }
 
-      const { rows: items } = await client.query(
-        'SELECT id, payload FROM task_items WHERE task_id = $1',
-        [taskId],
+      await client.query(
+        `INSERT INTO assignment_items (assignment_id, source_item_id, sort_order, payload)
+         SELECT $1, ranked.id, ranked.seq_order, ranked.payload
+         FROM (
+           SELECT i.id, i.payload, ROW_NUMBER() OVER (ORDER BY i.sort_order, i.id) - 1 AS seq_order
+           FROM task_items i WHERE i.task_id = $2
+         ) ranked
+         ON CONFLICT (assignment_id, sort_order) DO NOTHING`,
+        [assignment.id, taskId],
       );
-      const itemMap = new Map(items.map((i) => [i.id, i]));
+
+      const { rows: items } = await client.query(
+        'SELECT id, source_item_id, payload FROM assignment_items WHERE assignment_id = $1 ORDER BY sort_order, id',
+        [assignment.id],
+      );
+      const itemMap = new Map();
+      const sourceItemMap = new Map();
+      for (const item of items) {
+        itemMap.set(item.id, item);
+        if (item.source_item_id != null) sourceItemMap.set(item.source_item_id, item);
+      }
       if (answers.length !== items.length) {
         const err = new Error('answers must cover every item');
         err.status = 400;
@@ -59,7 +75,8 @@ submissionsRouter.post('/:id/submit', async (req, res) => {
 
       const saved = [];
       for (const ans of answers) {
-        const item = itemMap.get(Number(ans.item_id));
+        const itemId = Number(ans.assignment_item_id ?? ans.item_id);
+        const item = itemMap.get(itemId) || (ans.assignment_item_id == null ? sourceItemMap.get(itemId) : null);
         if (!item) {
           const err = new Error('invalid item');
           err.status = 400;
@@ -74,17 +91,22 @@ submissionsRouter.post('/:id/submit', async (req, res) => {
         const gold = item.payload?.gold;
         const isCorrect = gold == null ? null : answer === String(gold);
         const { rows } = await client.query(
-          `INSERT INTO submissions (assignment_id, item_id, answer, is_correct)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (assignment_id, item_id) DO UPDATE SET answer = EXCLUDED.answer, is_correct = EXCLUDED.is_correct
+          `INSERT INTO submissions (assignment_id, item_id, assignment_item_id, answer, is_correct)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (assignment_id, assignment_item_id) DO UPDATE SET answer = EXCLUDED.answer, is_correct = EXCLUDED.is_correct
            RETURNING *`,
-          [assignment.id, item.id, answer, isCorrect],
+          [assignment.id, item.source_item_id, item.id, answer, isCorrect],
         );
         saved.push(rows[0]);
       }
 
       const { rows: urows } = await client.query('SELECT tier FROM users WHERE id = $1', [req.user.id]);
-      const pay = applyTierPay(dollarsFromCents(task.pay_cents), urows[0]?.tier);
+      const { rows: bonuses } = await client.query(
+        'SELECT COALESCE(SUM(bonus_cents), 0)::int AS bonus_cents FROM assignment_items WHERE assignment_id = $1',
+        [assignment.id],
+      );
+      const bonusCents = bonuses[0]?.bonus_cents || 0;
+      const pay = applyTierPay(dollarsFromCents(task.pay_cents + bonusCents), urows[0]?.tier);
       const payoutStatus = pay > 0 ? 'pending' : 'released';
       await client.query(
         `UPDATE assignments

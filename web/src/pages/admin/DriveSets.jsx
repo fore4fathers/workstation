@@ -14,6 +14,7 @@ export default function AdminDriveSets() {
   const [selectedTask, setSelectedTask] = useState('');
   const [bestMatchRate, setBestMatchRate] = useState('0.50');
   const [alternativeRate, setAlternativeRate] = useState('0.25');
+  const [totalItems, setTotalItems] = useState('20');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -53,7 +54,7 @@ export default function AdminDriveSets() {
         body: {
           user_id: Number(selectedWorker),
           task_id: Number(selectedTask),
-          total_items: 20,
+          total_items: Number(totalItems),
           commission_cents: Math.round(Number(bestMatchRate) * 100),
           alternative_commission_cents: Math.round(Number(alternativeRate) * 100),
           foreign_commission_cents: Math.round(Number(bestMatchRate) * 100),
@@ -120,6 +121,11 @@ export default function AdminDriveSets() {
           <div>
             <label><LocalizedText source={"Alternative useful match reward ($)"} /></label>
             <input type="number" min="0" step="0.01" value={alternativeRate} onChange={(e) => setAlternativeRate(e.target.value)} />
+          </div>
+          <div>
+            <label>Items in training set</label>
+            <input type="number" min="1" step="1" required value={totalItems} onChange={(e) => setTotalItems(e.target.value)} />
+            <small className="meta">Choose how many images to assign from the selected task.</small>
           </div>
           <div>
         <label><LocalizedText source={"Other-language response reward ($, matches closest reward)"} /></label>

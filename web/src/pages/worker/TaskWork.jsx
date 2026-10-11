@@ -22,6 +22,20 @@ export default function TaskWork() {
 
   useEffect(() => {
     let cancelled = false;
+    let refreshTimer;
+    async function refreshItems() {
+      try {
+        const latest = await api(`/api/tasks/${id}`);
+        if (!cancelled) {
+          const latestItems = latest.items || [];
+          setItems(latestItems);
+          const currentIndex = latestItems.findIndex((item) => item.id === latest.current_item_id);
+          if (currentIndex >= 0) setIdx(currentIndex);
+        }
+      } catch {
+        // The current copy remains usable if a background refresh is unavailable.
+      }
+    }
     (async () => {
       try {
         const data = await api(`/api/tasks/${id}`);
@@ -32,14 +46,19 @@ export default function TaskWork() {
           setLocked(true);
           return;
         }
-        setTask(data.task);
-        setItems(data.items || []);
         await api(`/api/tasks/${id}/start`, { method: 'POST' }).catch(() => {});
+        const latest = await api(`/api/tasks/${id}`);
+        if (cancelled) return;
+        setTask(latest.task);
+        setItems(latest.items || []);
+        const currentIndex = (latest.items || []).findIndex((item) => item.id === latest.current_item_id);
+        if (currentIndex >= 0) setIdx(currentIndex);
+        refreshTimer = window.setInterval(refreshItems, 5000);
       } catch (err) {
         if (!cancelled) setError(err.message);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; window.clearInterval(refreshTimer); };
   }, [id, tier]);
 
   if (locked) {
@@ -74,13 +93,18 @@ export default function TaskWork() {
   const reduce = typeof window !== 'undefined'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function goNext() {
+  async function goNext() {
     if (!answers[item.id]) {
       setError('Pick a label');
       return;
     }
     setError('');
     if (!last) {
+      const nextItem = items[idx + 1];
+      if (nextItem) {
+        await api(`/api/tasks/${id}/progress`, { method: 'POST', body: { item_id: nextItem.id } })
+          .catch((err) => console.warn('Could not update engagement position:', err.message));
+      }
       if (reduce) {
         setIdx(idx + 1);
         return;
@@ -95,7 +119,7 @@ export default function TaskWork() {
     setBusy(true);
     api(`/api/tasks/${id}/submit`, {
       method: 'POST',
-      body: { answers: items.map((it) => ({ item_id: it.id, answer: answers[it.id] })) },
+      body: { answers: items.map((it) => ({ assignment_item_id: it.id, answer: answers[it.id] })) },
     })
       .then(() => navigate('/'))
       .catch((err) => {

@@ -90,19 +90,244 @@ adminRouter.get('/tasks', async (_req, res) => {
                                       AND COALESCE(di.payload->>'image_url', '') NOT ILIKE '%picsum.photos%')
                  THEN (SELECT COUNT(*)::int FROM images ci WHERE ${CIVITAI_PROMPT_FILTER})
                  ELSE (SELECT COUNT(*)::int FROM task_items i WHERE i.task_id = t.id) END AS item_count,
-            (SELECT COUNT(*)::int FROM assignments a WHERE a.task_id = t.id AND a.status = 'submitted') AS submissions,
-            CASE WHEN t.engagement_type = 'merge' THEN (
-              SELECT i.payload
-                FROM task_items i
-               WHERE i.task_id = t.id
-               ORDER BY i.sort_order
-               LIMIT 1
-            ) ELSE NULL END AS merge_item
+            (SELECT COUNT(*)::int FROM assignments a WHERE a.task_id = t.id AND a.status = 'submitted') AS submissions
      FROM tasks t ORDER BY t.id DESC`,
   );
   res.json({
     tasks: rows.map((t) => ({ ...t, title: t.display_title, pay_dollars: dollarsFromCents(t.pay_cents) })),
   });
+});
+
+adminRouter.get('/engagements', async (_req, res) => {
+  const { rows } = await query(
+    `SELECT a.id AS assignment_id, a.task_id, a.worker_id, a.started_at, a.current_assignment_item_id,
+            u.display_name, u.email, t.title AS task_title, t.type, t.pay_cents,
+            current_item.sort_order AS current_sort_order,
+            (SELECT COUNT(*)::int FROM assignment_items i WHERE i.assignment_id = a.id) AS item_count,
+            (SELECT COUNT(*)::int FROM submissions s WHERE s.assignment_id = a.id) AS completed_items
+     FROM assignments a
+     JOIN users u ON u.id = a.worker_id
+     JOIN tasks t ON t.id = a.task_id
+     LEFT JOIN assignment_items current_item ON current_item.id = a.current_assignment_item_id
+     WHERE a.status = 'in_progress'
+     ORDER BY a.started_at DESC NULLS LAST, a.id DESC`,
+  );
+  res.json({ engagements: rows.map((row) => ({ ...row, pay_dollars: dollarsFromCents(row.pay_cents) })) });
+});
+
+adminRouter.get('/engagements/:id', async (req, res) => {
+  const { rows: assignments } = await query(
+    `SELECT a.id AS assignment_id, a.task_id, a.worker_id, a.status, a.started_at,
+            a.current_assignment_item_id, a.payout_amount, u.display_name, u.email,
+            t.title AS task_title, t.type, t.pay_cents, u.tier,
+            current_item.sort_order AS current_sort_order
+     FROM assignments a
+     JOIN users u ON u.id = a.worker_id
+     JOIN tasks t ON t.id = a.task_id
+     LEFT JOIN assignment_items current_item ON current_item.id = a.current_assignment_item_id
+     WHERE a.id = $1`,
+    [req.params.id],
+  );
+  const engagement = assignments[0];
+  if (!engagement) return res.status(404).json({ error: 'engagement not found' });
+  const { rows: items } = await query(
+    `SELECT i.id, i.sort_order, i.payload,
+            i.bonus_cents,
+            s.answer, (i.id = $2) AS is_current
+     FROM assignment_items i
+     LEFT JOIN submissions s ON s.assignment_id = $1 AND s.assignment_item_id = i.id
+     WHERE i.assignment_id = $1
+     ORDER BY i.sort_order, i.id`,
+    [engagement.assignment_id, engagement.current_assignment_item_id],
+  );
+  const bonusCents = items.reduce((sum, item) => sum + item.bonus_cents, 0);
+  res.json({
+    engagement: {
+      ...engagement,
+      pay_dollars: dollarsFromCents(engagement.pay_cents),
+      bonus_cents: bonusCents,
+      bonus_dollars: dollarsFromCents(bonusCents),
+      total_pay_dollars: dollarsFromCents(engagement.pay_cents + bonusCents),
+    },
+    items: items.map((item) => ({
+      id: item.id,
+      sort_order: item.sort_order,
+      payload: item.payload,
+      answer: item.answer,
+      is_current: item.is_current,
+      is_completed: item.answer != null,
+      bonus_cents: item.bonus_cents,
+    })),
+  });
+});
+
+adminRouter.post('/engagements/:id/merge', async (req, res) => {
+  const itemId = Number(req.body?.item_id);
+  const title = String(req.body?.product?.title || '').trim();
+  const imageUrl = String(req.body?.product?.image_url || '').trim();
+  const bonusCents = Number(req.body?.bonus_cents);
+  let parsedUrl;
+  try { parsedUrl = new URL(imageUrl); } catch { parsedUrl = null; }
+  if (!Number.isInteger(itemId) || itemId < 1) return res.status(400).json({ error: 'Choose a valid item position.' });
+  if (!title) return res.status(400).json({ error: 'Product name is required.' });
+  if (!parsedUrl || !['http:', 'https:'].includes(parsedUrl.protocol)) return res.status(400).json({ error: 'Enter a valid product image URL.' });
+  if (!Number.isInteger(bonusCents) || bonusCents < 1) return res.status(400).json({ error: 'Merge bonus must be greater than zero.' });
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const { rows: assignments } = await client.query(
+        `SELECT id, task_id, status FROM assignments WHERE id = $1 FOR UPDATE`,
+        [req.params.id],
+      );
+      const assignment = assignments[0];
+      if (!assignment) {
+        const err = new Error('engagement not found'); err.status = 404; throw err;
+      }
+      if (assignment.status !== 'in_progress') {
+        const err = new Error('Only an active engagement can be updated.'); err.status = 409; throw err;
+      }
+
+      const { rows: itemRows } = await client.query(
+        `SELECT i.id, i.payload, s.id AS submission_id
+         FROM assignment_items i
+         LEFT JOIN submissions s ON s.assignment_id = $1 AND s.assignment_item_id = i.id
+         WHERE i.assignment_id = $1 AND i.id = $2
+         FOR UPDATE OF i`,
+        [assignment.id, itemId],
+      );
+      const item = itemRows[0];
+      if (!item) {
+        const err = new Error('That position is not part of this engagement.'); err.status = 404; throw err;
+      }
+      if (item.submission_id) {
+        const err = new Error('This position is already completed and can no longer be changed.'); err.status = 409; throw err;
+      }
+
+      const existingPayload = item.payload;
+      const products = Array.isArray(existingPayload.merge_products) && existingPayload.merge_products.length
+        ? [...existingPayload.merge_products]
+        : [{ title: String(existingPayload.product_title || existingPayload.title || 'Product'), image_url: existingPayload.image_url }];
+      if (!products[0].image_url) {
+        const err = new Error('The selected item has no product image to merge with.'); err.status = 400; throw err;
+      }
+      if (products.length >= 3) {
+        const err = new Error('A merge can contain at most three products.'); err.status = 400; throw err;
+      }
+      products.push({ title, image_url: imageUrl });
+      const payload = { ...existingPayload, merge_products: products };
+      const { rows: saved } = await client.query(
+        `UPDATE assignment_items SET payload = $1, bonus_cents = bonus_cents + $2, updated_at = NOW()
+         WHERE id = $3 AND assignment_id = $4 RETURNING payload, bonus_cents`,
+        [payload, bonusCents, item.id, assignment.id],
+      );
+      return { item_id: item.id, payload: saved[0].payload, bonus_cents: saved[0].bonus_cents };
+    });
+    res.status(201).json({ merge: result });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || 'Could not add merge product.' });
+  }
+});
+
+adminRouter.post('/engagements/:id/items', async (req, res) => {
+  const afterItemId = Number(req.body?.after_item_id);
+  const title = String(req.body?.title || '').trim();
+  const imageUrl = String(req.body?.image_url || '').trim();
+  const labels = Array.isArray(req.body?.labels) ? req.body.labels.map((label) => String(label).trim()).filter(Boolean) : [];
+  const bonusCents = Number(req.body?.bonus_cents || 0);
+  let parsedUrl;
+  try { parsedUrl = new URL(imageUrl); } catch { parsedUrl = null; }
+  if (!Number.isInteger(afterItemId) || afterItemId < 1) return res.status(400).json({ error: 'Choose a position for the new item.' });
+  if (!title) return res.status(400).json({ error: 'Item name is required.' });
+  if (!parsedUrl || !['http:', 'https:'].includes(parsedUrl.protocol)) return res.status(400).json({ error: 'Enter a valid product image URL.' });
+  if (!labels.length) return res.status(400).json({ error: 'Add at least one answer choice.' });
+  if (!Number.isInteger(bonusCents) || bonusCents < 0) return res.status(400).json({ error: 'Item bonus must be zero or greater.' });
+
+  try {
+    const result = await withTransaction(async (client) => {
+      const { rows: assignments } = await client.query(
+        `SELECT a.id, a.task_id, a.status, t.type
+         FROM assignments a JOIN tasks t ON t.id = a.task_id
+         WHERE a.id = $1 FOR UPDATE OF a`,
+        [req.params.id],
+      );
+      const assignment = assignments[0];
+      if (!assignment) { const err = new Error('engagement not found'); err.status = 404; throw err; }
+      if (assignment.status !== 'in_progress') { const err = new Error('Only an active engagement can be updated.'); err.status = 409; throw err; }
+      if (assignment.type !== 'image') { const err = new Error('New product items can currently be added to image engagements.'); err.status = 400; throw err; }
+      const { rows: targets } = await client.query(
+        `SELECT i.id, i.sort_order, s.id AS submission_id
+         FROM assignment_items i
+         LEFT JOIN submissions s ON s.assignment_id = $1 AND s.assignment_item_id = i.id
+         WHERE i.assignment_id = $1 AND i.id = $2
+         FOR UPDATE OF i`,
+        [assignment.id, afterItemId],
+      );
+      const target = targets[0];
+      if (!target) { const err = new Error('That position is not part of this engagement.'); err.status = 404; throw err; }
+      if (target.submission_id) { const err = new Error('Choose an unfinished position.'); err.status = 409; throw err; }
+      await client.query(
+        `UPDATE assignment_items SET sort_order = sort_order + 1000000
+         WHERE assignment_id = $1 AND sort_order > $2`,
+        [assignment.id, target.sort_order],
+      );
+      await client.query(
+        `UPDATE assignment_items SET sort_order = sort_order - 999999
+         WHERE assignment_id = $1 AND sort_order >= 1000000`,
+        [assignment.id],
+      );
+      const { rows: inserted } = await client.query(
+        `INSERT INTO assignment_items (assignment_id, source_item_id, sort_order, payload, bonus_cents)
+         VALUES ($1, NULL, $2, $3, $4) RETURNING id, sort_order`,
+        [assignment.id, target.sort_order + 1, { product_title: title, image_url: imageUrl, labels }, bonusCents],
+      );
+      return inserted[0];
+    });
+    res.status(201).json({ item: result });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || 'Could not add item.' });
+  }
+});
+
+adminRouter.put('/engagements/:id/items/:itemId/product', async (req, res) => {
+  const itemId = Number(req.params.itemId);
+  const title = String(req.body?.title || '').trim();
+  const imageUrl = String(req.body?.image_url || '').trim();
+  let parsedUrl;
+  try { parsedUrl = new URL(imageUrl); } catch { parsedUrl = null; }
+  if (!Number.isInteger(itemId) || itemId < 1) return res.status(400).json({ error: 'Choose a valid item position.' });
+  if (!title) return res.status(400).json({ error: 'Product name is required.' });
+  if (!parsedUrl || !['http:', 'https:'].includes(parsedUrl.protocol)) return res.status(400).json({ error: 'Enter a valid product image URL.' });
+  try {
+    const result = await withTransaction(async (client) => {
+      const { rows: assignments } = await client.query(
+        `SELECT id, status FROM assignments WHERE id = $1 FOR UPDATE`,
+        [req.params.id],
+      );
+      const assignment = assignments[0];
+      if (!assignment) { const err = new Error('engagement not found'); err.status = 404; throw err; }
+      if (assignment.status !== 'in_progress') { const err = new Error('Only an active engagement can be updated.'); err.status = 409; throw err; }
+      const { rows: items } = await client.query(
+        `SELECT i.id, i.payload, s.id AS submission_id
+         FROM assignment_items i
+         LEFT JOIN submissions s ON s.assignment_id = $1 AND s.assignment_item_id = i.id
+         WHERE i.assignment_id = $1 AND i.id = $2
+         FOR UPDATE OF i`,
+        [assignment.id, itemId],
+      );
+      const item = items[0];
+      if (!item) { const err = new Error('That position is not part of this engagement.'); err.status = 404; throw err; }
+      if (item.submission_id) { const err = new Error('This position is already completed and can no longer be changed.'); err.status = 409; throw err; }
+      const payload = { ...item.payload, product_title: title, image_url: imageUrl };
+      if (Array.isArray(payload.merge_products) && payload.merge_products.length) {
+        payload.merge_products = [{ ...payload.merge_products[0], title, image_url: imageUrl }, ...payload.merge_products.slice(1)];
+      }
+      await client.query('UPDATE assignment_items SET payload = $1, updated_at = NOW() WHERE id = $2', [payload, item.id]);
+      return { item_id: item.id, payload };
+    });
+    res.json({ item: result });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || 'Could not change product.' });
+  }
 });
 
 adminRouter.post('/tasks', async (req, res) => {

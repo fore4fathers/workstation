@@ -13,6 +13,48 @@ export async function migrate() {
   await query(`ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_engagement_type_check`);
   await query(`ALTER TABLE tasks ADD CONSTRAINT tasks_engagement_type_check CHECK (engagement_type IN ('single','merge'))`);
   await query(`
+    CREATE TABLE IF NOT EXISTS assignment_items (
+      id SERIAL PRIMARY KEY,
+      assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+      source_item_id INTEGER REFERENCES task_items(id) ON DELETE SET NULL,
+      sort_order INTEGER NOT NULL,
+      payload JSONB NOT NULL,
+      bonus_cents INTEGER NOT NULL DEFAULT 0 CHECK (bonus_cents >= 0),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (assignment_id, sort_order)
+    )
+  `);
+  await query(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS current_assignment_item_id INTEGER REFERENCES assignment_items(id) ON DELETE SET NULL`);
+  await query(`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS assignment_item_id INTEGER REFERENCES assignment_items(id) ON DELETE CASCADE`);
+  await query(`ALTER TABLE submissions ALTER COLUMN item_id DROP NOT NULL`);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_assignment_item ON submissions(assignment_id, assignment_item_id)`);
+  await query(`
+    INSERT INTO assignment_items (assignment_id, source_item_id, sort_order, payload)
+    SELECT a.id, ranked.id, ranked.seq_order, ranked.payload
+      FROM assignments a
+      JOIN LATERAL (
+        SELECT i.id, i.payload, ROW_NUMBER() OVER (ORDER BY i.sort_order, i.id) - 1 AS seq_order
+          FROM task_items i WHERE i.task_id = a.task_id
+      ) ranked ON TRUE
+    ON CONFLICT (assignment_id, sort_order) DO NOTHING
+  `);
+  await query(`
+    UPDATE submissions s SET assignment_item_id = ai.id
+      FROM assignment_items ai
+     WHERE ai.assignment_id = s.assignment_id
+       AND ai.source_item_id = s.item_id
+       AND s.assignment_item_id IS NULL
+  `);
+  await query(`
+    UPDATE assignments a SET current_assignment_item_id = (
+      SELECT ai.id FROM assignment_items ai
+      LEFT JOIN submissions s ON s.assignment_id = ai.assignment_id AND s.assignment_item_id = ai.id
+      WHERE ai.assignment_id = a.id AND s.id IS NULL
+      ORDER BY ai.sort_order, ai.id LIMIT 1
+    )
+    WHERE a.status = 'in_progress' AND a.current_assignment_item_id IS NULL
+  `);
+  await query(`
     INSERT INTO app_settings (key, value)
     VALUES ('telegram_support_contact', 'https://t.me/aiworkstation_support')
     ON CONFLICT (key) DO NOTHING
