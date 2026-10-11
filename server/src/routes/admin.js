@@ -90,7 +90,14 @@ adminRouter.get('/tasks', async (_req, res) => {
                                       AND COALESCE(di.payload->>'image_url', '') NOT ILIKE '%picsum.photos%')
                  THEN (SELECT COUNT(*)::int FROM images ci WHERE ${CIVITAI_PROMPT_FILTER})
                  ELSE (SELECT COUNT(*)::int FROM task_items i WHERE i.task_id = t.id) END AS item_count,
-            (SELECT COUNT(*)::int FROM assignments a WHERE a.task_id = t.id AND a.status = 'submitted') AS submissions
+            (SELECT COUNT(*)::int FROM assignments a WHERE a.task_id = t.id AND a.status = 'submitted') AS submissions,
+            CASE WHEN t.engagement_type = 'merge' THEN (
+              SELECT i.payload
+                FROM task_items i
+               WHERE i.task_id = t.id
+               ORDER BY i.sort_order
+               LIMIT 1
+            ) ELSE NULL END AS merge_item
      FROM tasks t ORDER BY t.id DESC`,
   );
   res.json({

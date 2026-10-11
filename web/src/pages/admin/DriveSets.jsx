@@ -1,6 +1,7 @@
 import { LocalizedText } from '../../i18n.jsx';
 import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
 import { money } from '../../format.js';
 
@@ -85,7 +86,10 @@ export default function AdminDriveSets() {
     <>
       <div className="section-h">
         <h2><LocalizedText source={"Label Sets"} /></h2>
-        <p className="meta"><LocalizedText source={"Assign image sets using imported Civitai images and their stored prompts."} /></p>
+        <div className="label-sets-heading-actions">
+          <p className="meta"><LocalizedText source={"Assign image sets using imported Civitai images and their stored prompts."} /></p>
+          <Link className="primary small" to="/tasks">Product tasks</Link>
+        </div>
       </div>
       {error ? <p className="error">{error}</p> : null}
       <div className="card">

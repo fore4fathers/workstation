@@ -15,12 +15,24 @@ export default function AdminTasks() {
   const [labels, setLabels] = useState('Relevant, Not relevant');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [viewingTask, setViewingTask] = useState(null);
 
   async function load() {
     const data = await api('/api/admin/tasks');
     setTasks(data.tasks || []);
   }
   useEffect(() => { load().catch((e) => setError(e.message)); }, []);
+
+  useEffect(() => {
+    if (!viewingTask) return undefined;
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setViewingTask(null);
+    }
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [viewingTask]);
+
+  const mergeProducts = viewingTask?.merge_item?.merge_products || [];
 
   function updateProduct(index, key, value) {
     setProducts((current) => current.map((p, i) => i === index ? { ...p, [key]: value } : p));
@@ -80,8 +92,37 @@ export default function AdminTasks() {
       {engagement === 'merge' ? <p className="meta">Products in a merge are presented together and answered once. The configured merge reward is paid once for the full engagement.</p> : null}
       <button className="primary small" type="submit" disabled={busy}>{busy ? 'Creating…' : 'Create task'}</button>
     </form>
-    <div className="card" style={{ marginTop: 24 }}><h3>Existing tasks</h3><table className="table"><thead><tr><th>Task</th><th>Type</th><th>Items</th><th>Single reward</th><th>Engagement reward</th></tr></thead><tbody>
-      {tasks.map((task) => <tr key={task.id}><td>{task.title}</td><td>{task.engagement_type === 'merge' ? 'Merge' : 'Single'}</td><td>{task.item_count}</td><td>{task.single_pay_cents == null ? '—' : money(task.single_pay_cents / 100)}</td><td>{money(Number(task.pay_cents) / 100)}</td></tr>)}
+    <div className="card" style={{ marginTop: 24 }}><h3>Existing tasks</h3><table className="table"><thead><tr><th>Task</th><th>Type</th><th>Items</th><th>Single reward</th><th>Engagement reward</th><th /></tr></thead><tbody>
+      {tasks.map((task) => <tr key={task.id}><td>{task.title}</td><td>{task.engagement_type === 'merge' ? 'Merge' : 'Single'}</td><td>{task.item_count}</td><td>{task.single_pay_cents == null ? '—' : money(task.single_pay_cents / 100)}</td><td>{money(Number(task.pay_cents) / 100)}</td><td>{task.engagement_type === 'merge' ? <button type="button" className="ghost small" onClick={() => setViewingTask(task)}>View merge</button> : null}</td></tr>)}
     </tbody></table></div>
+    {viewingTask ? (
+      <div className="merge-viewer-backdrop" role="presentation" onClick={() => setViewingTask(null)}>
+        <div className="modal-dialog modal-xl merge-viewer-dialog" role="dialog" aria-modal="true" aria-labelledby="merge-viewer-title" onClick={(event) => event.stopPropagation()}>
+          <div className="merge-viewer-header">
+            <div>
+              <p className="meta">Merge engagement · Task #{viewingTask.id}</p>
+              <h2 id="merge-viewer-title">{viewingTask.title}</h2>
+            </div>
+            <button type="button" className="ghost small" onClick={() => setViewingTask(null)}>Close</button>
+          </div>
+          <p>{viewingTask.description || 'These products are shown together and answered once.'}</p>
+          <div className="merge-viewer-rewards">
+            <div><span className="meta">Single-product reward</span><b>{money(Number(viewingTask.single_pay_cents || 0) / 100)}</b></div>
+            <div><span className="meta">Merge reward paid once</span><b>{money(Number(viewingTask.pay_cents || 0) / 100)}</b></div>
+          </div>
+          <div className="merge-product-grid">
+            {mergeProducts.map((product, index) => (
+              <figure className="merge-product-card" key={`${product.image_url}-${index}`}>
+                <img src={product.image_url} alt={product.title || `Product ${index + 1}`} />
+                <figcaption><b>{product.title || `Product ${index + 1}`}</b><span className="meta">Product {index + 1}</span></figcaption>
+              </figure>
+            ))}
+          </div>
+          {!mergeProducts.length ? <p className="meta">No saved merge product details were returned for this task.</p> : null}
+          {viewingTask.merge_item?.labels?.length ? <div className="merge-viewer-labels"><span className="meta">Answer choices</span><div>{viewingTask.merge_item.labels.map((label) => <span className="pill" key={label}>{label}</span>)}</div></div> : null}
+          <p className="meta">The worker sees all listed products together and submits one answer for the full merge.</p>
+        </div>
+      </div>
+    ) : null}
   </>;
 }
