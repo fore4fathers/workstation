@@ -103,17 +103,28 @@ adminRouter.post('/tasks', async (req, res) => {
   const title = String(req.body?.title || '').trim();
   const description = String(req.body?.description || '');
   const pay_cents = Number(req.body?.pay_cents);
+  const single_pay_cents = req.body?.single_pay_cents == null ? null : Number(req.body.single_pay_cents);
+  const engagement_type = req.body?.engagement_type === 'merge' ? 'merge' : 'single';
   const est_minutes = Number(req.body?.est_minutes || 5);
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
   if (!['image', 'text', 'intent'].includes(type)) return res.status(400).json({ error: 'invalid type' });
   if (!title) return res.status(400).json({ error: 'title required' });
   if (!Number.isInteger(pay_cents) || pay_cents < 0) return res.status(400).json({ error: 'pay_cents required' });
+  if (engagement_type === 'merge' && (!Number.isInteger(single_pay_cents) || single_pay_cents < 0 || pay_cents <= single_pay_cents)) {
+    return res.status(400).json({ error: 'merge pay must be greater than single-product pay' });
+  }
+  if (engagement_type === 'merge' && (!items.length || items.length !== 1 || !Array.isArray(items[0]?.merge_products) || items[0].merge_products.length < 2 || items[0].merge_products.length > 3)) {
+    return res.status(400).json({ error: 'a merge engagement needs 2 or 3 products in one item' });
+  }
+  if (engagement_type === 'merge' && (type !== 'image' || items[0].merge_products.some((product) => !String(product?.image_url || '').trim()))) {
+    return res.status(400).json({ error: 'merge products need valid image URLs and an image task type' });
+  }
 
   const created = await withTransaction(async (client) => {
     const { rows } = await client.query(
-      `INSERT INTO tasks (created_by, type, title, description, pay_cents, est_minutes)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [req.user.id, type, title, description, pay_cents, est_minutes],
+      `INSERT INTO tasks (created_by, type, title, description, pay_cents, single_pay_cents, engagement_type, est_minutes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.user.id, type, title, description, pay_cents, single_pay_cents, engagement_type, est_minutes],
     );
     const task = rows[0];
     const savedItems = [];

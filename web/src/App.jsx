@@ -29,6 +29,7 @@ import AdminProfile from './pages/admin/Profile.jsx';
 import AdminWorkers from './pages/admin/Workers.jsx';
 import AdminWorkerDetail from './pages/admin/WorkerDetail.jsx';
 import AdminDriveSets from './pages/admin/DriveSets.jsx';
+import AdminTasks from './pages/admin/Tasks.jsx';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -92,6 +93,7 @@ export default function App() {
           <Route path="wallet" element={<AdminWallet />} />
           <Route path="deposits" element={<AdminDeposits />} />
           <Route path="drive-sets" element={<AdminDriveSets />} />
+          <Route path="tasks" element={<AdminTasks />} />
           <Route path="inbox" element={<AdminInbox />} />
           <Route path="profile" element={<AdminProfile session={session} />} />
           <Route path="*" element={<Navigate to="/" replace />} />

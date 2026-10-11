@@ -8,6 +8,10 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export async function migrate() {
   const schema = fs.readFileSync(path.join(here, 'schema.sql'), 'utf8');
   await query(schema);
+  await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS single_pay_cents INTEGER`);
+  await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS engagement_type TEXT NOT NULL DEFAULT 'single'`);
+  await query(`ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_engagement_type_check`);
+  await query(`ALTER TABLE tasks ADD CONSTRAINT tasks_engagement_type_check CHECK (engagement_type IN ('single','merge'))`);
   await query(`
     INSERT INTO app_settings (key, value)
     VALUES ('telegram_support_contact', 'https://t.me/aiworkstation_support')

@@ -122,9 +122,18 @@ export default function TaskWork() {
         ) : (
           <div className={`work-stage is-${phase}`}>
             {task.type === 'image' ? (
+              p.merge_products?.length > 1 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(2, p.merge_products.length)}, minmax(0, 1fr))`, gap: 10, marginBottom: 16 }}>
+                  {p.merge_products.map((product, i) => <figure key={`${product.image_url}-${i}`} style={{ margin: 0 }}>
+                    <img className="work-img" src={product.image_url} alt={product.title || `Merged product ${i + 1}`} />
+                    <figcaption className="meta" style={{ paddingTop: 6 }}>{product.title || `Product ${i + 1}`}</figcaption>
+                  </figure>)}
+                </div>
+              ) : (
               <div className="media-box">
                 <img className="work-img" src={p.image_url} alt="" />
               </div>
+              )
             ) : (
               <div className="utterance">{task.type === 'text' ? p.text : p.utterance}</div>
             )}

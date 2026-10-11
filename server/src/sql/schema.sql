@@ -66,6 +66,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   title         TEXT NOT NULL,
   description   TEXT NOT NULL DEFAULT '',
   pay_cents     INTEGER NOT NULL CHECK (pay_cents >= 0),
+  single_pay_cents INTEGER,
+  engagement_type TEXT NOT NULL DEFAULT 'single' CHECK (engagement_type IN ('single','merge')),
   est_minutes   INTEGER NOT NULL DEFAULT 5,
   is_published  BOOLEAN NOT NULL DEFAULT TRUE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()

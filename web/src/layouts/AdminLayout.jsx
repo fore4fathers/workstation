@@ -9,6 +9,7 @@ const links = [
   { to: '/wallet', label: 'Withdrawals', key: 'admin.withdrawals' },
   { to: '/deposits', label: 'Deposits', key: 'admin.deposits' },
   { to: '/workers', label: 'Workers', key: 'admin.workers' },
+  { to: '/tasks', label: 'Tasks', key: 'nav.tasks' },
   { to: '/drive-sets', label: 'Label Sets', key: 'nav.labelSets' },
   { to: '/inbox', label: 'Inbox', key: 'admin.inbox' },
   { to: '/profile', label: 'Profile', key: 'nav.profile' },

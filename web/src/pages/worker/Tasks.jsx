@@ -180,9 +180,9 @@ export default function WorkerTasks({ session }) {
             <div className={`task-icon ${t.type}`}>{typeIcon(t.type)}</div>
             <div className="grow">
               <h3>{t.title}</h3>
-              <div className="meta">{t.description || `${t.item_count} items`}</div>
+            <div className="meta">{t.engagement_type === 'merge' ? 'Merge engagement · products reviewed together' : (t.description || `${t.item_count} items`)}</div>
             </div>
-            <div className="task-pay"><b>{money(t.pay_dollars)}</b></div>
+            <div className="task-pay">{t.engagement_type === 'merge' ? <span className="pill">Merge</span> : null}<b>{money(t.pay_dollars)}</b></div>
           </Link>
         ))}
       </div>

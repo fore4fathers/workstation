@@ -16,7 +16,7 @@ tasksRouter.get('/', async (req, res) => {
     typeSql = ` AND t.type = $${params.length}`;
   }
   const { rows } = await query(
-    `SELECT t.id, t.type, t.title, t.description, t.pay_cents, t.est_minutes, t.created_at,
+    `SELECT t.id, t.type, t.title, t.description, t.pay_cents, t.single_pay_cents, t.engagement_type, t.est_minutes, t.created_at,
             a.id AS assignment_id, a.status AS assignment_status, a.submitted_at, a.payout_status, a.payout_amount,
             (SELECT COUNT(*)::int FROM task_items i WHERE i.task_id = t.id) AS item_count,
             (SELECT i.payload->>'image_url' FROM task_items i WHERE i.task_id = t.id ORDER BY i.sort_order, i.id LIMIT 1) AS image_url
@@ -37,7 +37,7 @@ tasksRouter.get('/', async (req, res) => {
 
 tasksRouter.get('/:id', async (req, res) => {
   const { rows } = await query(
-    `SELECT id, type, title, description, pay_cents, est_minutes, is_published
+    `SELECT id, type, title, description, pay_cents, single_pay_cents, engagement_type, est_minutes, is_published
      FROM tasks WHERE id = $1`,
     [req.params.id],
   );
