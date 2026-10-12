@@ -336,6 +336,11 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .engagement-merge-form { display: grid; gap: 12px; }
 .engagement-merge-form h3, .engagement-merge-form p { margin: 0; }
 .engagement-form-actions { display: flex; gap: 8px; }
+.merge-product-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; max-height: 320px; overflow: auto; padding: 4px; }
+.merge-product-choice { display: grid; gap: 7px; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: left; cursor: pointer; }
+.merge-product-choice img { width: 100%; height: 108px; object-fit: cover; border-radius: 6px; background: var(--canvas); }
+.merge-product-choice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.merge-product-choice.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
 .active-engagements-card { margin-bottom: 20px; }
 .active-engagements-card .section-h { margin: 0 0 12px; }
 .drive-merged-products { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; width: 100%; }
@@ -597,6 +602,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 
 .drive-trainer { width: 100%; max-width: 980px; margin: 0 auto; }
 .drive-trainer-header { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; }
+.bundle-set-badge { align-self: flex-start; padding: 5px 11px; border: 1px solid #d6b44c; border-radius: 999px; background: #fff5ce; color: #6c4b00; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
 .drive-trainer-summary {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px; width: 100%; margin-top: 4px;
@@ -659,6 +665,16 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .worker-label-set-action button { min-height: 40px; }
 .drive-trainer .row-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .drive-trainer .row-actions > button { width: auto; min-width: 160px; margin: 0; }
+.bundle-notice-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 18px; background: rgba(11, 18, 32, .7); backdrop-filter: blur(8px); }
+.bundle-notice-dialog { display: grid; justify-items: center; gap: 12px; width: min(470px, 100%); padding: 24px; border: 1px solid rgba(255, 255, 255, .8); border-radius: 20px; background: var(--surface); box-shadow: 0 24px 72px rgba(0, 0, 0, .32); text-align: center; }
+.bundle-notice-dialog h2, .bundle-notice-dialog p { margin: 0; }
+.bundle-notice-dialog h2 { font-size: 22px; }
+.bundle-notice-dialog p { color: var(--ink-soft); }
+.bundle-notice-dialog .bundle-notice-reward { color: var(--success); font-size: 17px; }
+.bundle-notice-dialog .primary { width: 100%; margin: 4px 0 0; }
+.bundle-notice-art { display: flex; justify-content: center; align-items: center; padding: 10px 18px 2px; }
+.bundle-notice-art img { width: 132px; height: 132px; object-fit: cover; border: 4px solid var(--surface); border-radius: 16px; background: var(--canvas); box-shadow: 0 8px 20px rgba(15, 23, 42, .18); }
+.bundle-notice-art img + img { margin-left: -26px; transform: rotate(7deg) translateY(8px); }
 
 @media (max-width: 600px) {
   .drive-trainer { padding: 14px; }
@@ -1177,6 +1193,8 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--canvas)
     background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(15, 23, 42, .1);
   }
   .drive-trainer .row-actions > button { width: 100%; min-width: 0; min-height: 48px; margin: 0; padding: 10px; }
+  .bundle-notice-dialog { padding: 20px; }
+  .bundle-notice-art img { width: 110px; height: 110px; }
   .drive-trainer .row-actions.single-action { grid-template-columns: 1fr; }
   .worker-label-sets { padding: 12px; overflow: visible; }
   .worker-label-set-table, .worker-label-set-table tbody,

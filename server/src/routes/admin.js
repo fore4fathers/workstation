@@ -162,16 +162,35 @@ adminRouter.get('/engagements/:id', async (req, res) => {
   });
 });
 
+adminRouter.get('/engagements/:id/available-products', async (req, res) => {
+  const { rows: assignments } = await query('SELECT id, task_id, status FROM assignments WHERE id = $1', [req.params.id]);
+  const assignment = assignments[0];
+  if (!assignment) return res.status(404).json({ error: 'engagement not found' });
+  if (assignment.status !== 'in_progress') return res.status(409).json({ error: 'Only an active engagement can be changed.' });
+  const { rows } = await query(
+    `SELECT i.id, i.payload FROM task_items i
+     WHERE i.task_id = $1
+       AND NOT EXISTS (SELECT 1 FROM assignment_items ai WHERE ai.assignment_id = $2 AND ai.source_item_id = i.id)
+     ORDER BY i.sort_order, i.id LIMIT 500`, [assignment.task_id, assignment.id],
+  );
+  const { rows: assignedRows } = await query('SELECT payload FROM assignment_items WHERE assignment_id = $1', [assignment.id]);
+  const usedUrls = new Set(assignedRows.flatMap((row) => [
+    row.payload?.image_url,
+    ...(Array.isArray(row.payload?.merge_products) ? row.payload.merge_products.map((product) => product.image_url) : []),
+  ]).filter(Boolean));
+  res.json({ products: rows.map((row) => ({
+    product_ref: `task:${row.id}`,
+    title: row.payload?.product_title || row.payload?.title || `Product ${row.id}`,
+    image_url: row.payload?.image_url || row.payload?.imageUrl || '',
+  })).filter((product) => product.image_url && !usedUrls.has(product.image_url)) });
+});
+
 adminRouter.post('/engagements/:id/merge', async (req, res) => {
   const itemId = Number(req.body?.item_id);
-  const title = String(req.body?.product?.title || '').trim();
-  const imageUrl = String(req.body?.product?.image_url || '').trim();
+  const productRef = String(req.body?.product_ref || '');
   const bonusCents = Number(req.body?.bonus_cents);
-  let parsedUrl;
-  try { parsedUrl = new URL(imageUrl); } catch { parsedUrl = null; }
   if (!Number.isInteger(itemId) || itemId < 1) return res.status(400).json({ error: 'Choose a valid item position.' });
-  if (!title) return res.status(400).json({ error: 'Product name is required.' });
-  if (!parsedUrl || !['http:', 'https:'].includes(parsedUrl.protocol)) return res.status(400).json({ error: 'Enter a valid product image URL.' });
+  if (!/^task:\d+$/.test(productRef)) return res.status(400).json({ error: 'Choose an available product image.' });
   if (!Number.isInteger(bonusCents) || bonusCents < 1) return res.status(400).json({ error: 'Merge bonus must be greater than zero.' });
 
   try {
@@ -203,18 +222,34 @@ adminRouter.post('/engagements/:id/merge', async (req, res) => {
       if (item.submission_id) {
         const err = new Error('This position is already completed and can no longer be changed.'); err.status = 409; throw err;
       }
+      const sourceId = Number(productRef.slice('task:'.length));
+      const { rows: sourceRows } = await client.query('SELECT id, payload FROM task_items WHERE id = $1 AND task_id = $2', [sourceId, assignment.task_id]);
+      const source = sourceRows[0];
+      if (!source?.payload?.image_url) { const err = new Error('Choose an available product image from this task.'); err.status = 400; throw err; }
+      const { rows: usedRows } = await client.query('SELECT payload FROM assignment_items WHERE assignment_id = $1', [assignment.id]);
+      const alreadyUsed = usedRows.some((row) => row.payload?.image_url === source.payload.image_url
+        || row.payload?.merge_products?.some((product) => product.image_url === source.payload.image_url));
+      if (alreadyUsed) { const err = new Error('That product is already in this engagement.'); err.status = 409; throw err; }
 
       const existingPayload = item.payload;
-      const products = Array.isArray(existingPayload.merge_products) && existingPayload.merge_products.length
+      const products = Array.isArray(existingPayload.merge_products) && existingPayload.merge_products.length > 1
         ? [...existingPayload.merge_products]
-        : [{ title: String(existingPayload.product_title || existingPayload.title || 'Product'), image_url: existingPayload.image_url }];
+        : [{
+          title: String(existingPayload.product_title || existingPayload.title || 'Product'), image_url: existingPayload.image_url,
+          gold: existingPayload.gold, labels: existingPayload.labels,
+        }];
       if (!products[0].image_url) {
         const err = new Error('The selected item has no product image to merge with.'); err.status = 400; throw err;
       }
-      if (products.length >= 3) {
-        const err = new Error('A merge can contain at most three products.'); err.status = 400; throw err;
+      if (products.length >= 2) {
+        const err = new Error('This item already has a two-product bundle.'); err.status = 400; throw err;
       }
-      products.push({ title, image_url: imageUrl });
+      products.push({
+        title: source.payload.product_title || source.payload.title || `Product ${source.id}`,
+        image_url: source.payload.image_url,
+        gold: source.payload.gold,
+        labels: source.payload.labels,
+      });
       const payload = { ...existingPayload, merge_products: products };
       const { rows: saved } = await client.query(
         `UPDATE assignment_items SET payload = $1, bonus_cents = bonus_cents + $2, updated_at = NOW()
@@ -878,9 +913,15 @@ async function loadAdminDriveSet(id) {
   const items = await getSetItems(set);
   const { rows: itemRows } = await query(
     `SELECT i.id, i.image_index, i.sort_order, i.payload, i.bonus_cents,
-            ic.selected_label, (ic.id IS NOT NULL) AS is_completed
+            ic.selected_label,
+            (ic.answer_count >= CASE WHEN jsonb_typeof(i.payload->'merge_products') = 'array'
+              AND jsonb_array_length(i.payload->'merge_products') > 1
+              THEN jsonb_array_length(i.payload->'merge_products') ELSE 1 END) AS is_completed
      FROM drive_set_items i
-     LEFT JOIN image_commissions ic ON ic.drive_set_id = i.drive_set_id AND ic.drive_set_item_id = i.id
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS answer_count, MAX(selected_label) AS selected_label
+       FROM image_commissions c WHERE c.drive_set_id = i.drive_set_id AND c.drive_set_item_id = i.id
+     ) ic ON TRUE
      WHERE i.drive_set_id = $1 ORDER BY i.sort_order, i.id`, [set.id],
   );
   const firstOpen = itemRows.find((item) => !item.is_completed);
@@ -954,20 +995,43 @@ adminRouter.get('/drive-sets/:id/progress', async (req, res) => {
   });
 });
 
+adminRouter.get('/drive-sets/:id/available-products', async (req, res) => {
+  const details = await loadAdminDriveSet(req.params.id);
+  if (!details) return res.status(404).json({ error: 'drive set not found' });
+  const usedImageUrls = new Set(details.items.flatMap((item) => [
+    item.payload?.image_url,
+    ...(Array.isArray(item.payload?.merge_products) ? item.payload.merge_products.map((product) => product.image_url) : []),
+  ]).filter(Boolean));
+  let products = [];
+  if (details.set.civitai_backed) {
+    const { rows: images } = await query(`SELECT civitai_id, prompt FROM images WHERE ${CIVITAI_PROMPT_FILTER} ORDER BY id LIMIT 500`);
+    products = images.map((row) => ({
+      product_ref: `image:${row.civitai_id}`,
+      title: row.prompt.trim(),
+      image_url: `/api/civitai/images/${row.civitai_id}`,
+    }));
+  } else {
+    const { rows } = await query('SELECT id, payload FROM task_items WHERE task_id = $1 ORDER BY sort_order, id LIMIT 500', [details.set.task_id]);
+    products = rows.map((row) => ({
+      product_ref: `task:${row.id}`,
+      title: row.payload?.product_title || row.payload?.title || `Product ${row.id}`,
+      image_url: row.payload?.image_url || row.payload?.imageUrl || '',
+    }));
+  }
+  res.json({ products: products.filter((product) => product.image_url && !usedImageUrls.has(product.image_url)) });
+});
+
 adminRouter.post('/drive-sets/:id/merge', async (req, res) => {
   const itemId = Number(req.body?.item_id);
-  const title = String(req.body?.product?.title || '').trim();
-  const imageUrl = String(req.body?.product?.image_url || '').trim();
+  const productRef = String(req.body?.product_ref || '');
   const bonusCents = Number(req.body?.bonus_cents);
-  let parsedUrl;
-  try { parsedUrl = new URL(imageUrl); } catch { parsedUrl = null; }
-  if (!Number.isInteger(itemId) || itemId < 1 || !title || !parsedUrl || !['http:', 'https:'].includes(parsedUrl.protocol)
+  if (!Number.isInteger(itemId) || itemId < 1 || !/^(task|image):[^:]+$/.test(productRef)
       || !Number.isInteger(bonusCents) || bonusCents < 1) {
-    return res.status(400).json({ error: 'Choose an unfinished position, enter a valid product, and set a positive bonus.' });
+    return res.status(400).json({ error: 'Choose an unfinished position and an available product image, then set a positive bonus.' });
   }
   try {
     const result = await withTransaction(async (client) => {
-      const { rows: sets } = await client.query('SELECT id, status FROM drive_sets WHERE id = $1 FOR UPDATE', [req.params.id]);
+      const { rows: sets } = await client.query('SELECT id, task_id, status FROM drive_sets WHERE id = $1 FOR UPDATE', [req.params.id]);
       const set = sets[0];
       if (!set) { const err = new Error('drive set not found'); err.status = 404; throw err; }
       if (set.status !== 'active') { const err = new Error('Only an active drive set can be changed.'); err.status = 409; throw err; }
@@ -979,14 +1043,40 @@ adminRouter.post('/drive-sets/:id/merge', async (req, res) => {
       const item = items[0];
       if (!item) { const err = new Error('That position is not part of this drive set.'); err.status = 404; throw err; }
       if (item.submission_id) { const err = new Error('Completed positions cannot be changed.'); err.status = 409; throw err; }
-      const payload = item.payload;
-      const products = Array.isArray(payload.merge_products) && payload.merge_products.length
-        ? [...payload.merge_products]
-        : [{ title: payload.product_title || payload.title || 'Product', image_url: payload.image_url }];
-      if (!products[0].image_url || products.length >= 3) {
-        const err = new Error(products.length >= 3 ? 'A merge can contain at most three products.' : 'The selected item has no product image.'); err.status = 400; throw err;
+      const [sourceType, sourceId] = productRef.split(':');
+      let product;
+      if (sourceType === 'task') {
+        const { rows } = await client.query('SELECT id, payload FROM task_items WHERE id = $1 AND task_id = $2', [sourceId, set.task_id]);
+        const source = rows[0];
+        if (source) product = {
+          title: source.payload?.product_title || source.payload?.title || `Product ${source.id}`,
+          image_url: source.payload?.image_url || source.payload?.imageUrl || '',
+          gold: source.payload?.gold,
+          labels: source.payload?.labels || [],
+        };
+      } else {
+        const { rows } = await client.query(`SELECT civitai_id, prompt FROM images WHERE civitai_id = $1 AND ${CIVITAI_PROMPT_FILTER}`, [sourceId]);
+        if (rows[0]) {
+          const { rows: labels } = await client.query(`SELECT DISTINCT BTRIM(prompt) AS prompt FROM images WHERE ${CIVITAI_PROMPT_FILTER} ORDER BY prompt`);
+          product = { title: rows[0].prompt.trim(), image_url: `/api/civitai/images/${rows[0].civitai_id}`, gold: rows[0].prompt.trim(), labels: labels.map((row) => row.prompt) };
+        }
       }
-      products.push({ title, image_url: imageUrl });
+      if (!product?.image_url) { const err = new Error('Select an available product image from this set.'); err.status = 400; throw err; }
+      const { rows: usedRows } = await client.query('SELECT payload FROM drive_set_items WHERE drive_set_id = $1', [set.id]);
+      const alreadyUsed = usedRows.some((row) => row.payload?.image_url === product.image_url
+        || row.payload?.merge_products?.some((mergedProduct) => mergedProduct.image_url === product.image_url));
+      if (alreadyUsed) { const err = new Error('That product is already in this set. Choose another image.'); err.status = 409; throw err; }
+      const payload = item.payload;
+      const products = Array.isArray(payload.merge_products) && payload.merge_products.length > 1
+        ? [...payload.merge_products]
+        : [{
+          title: payload.product_title || payload.title || 'Product', image_url: payload.image_url,
+          gold: payload.gold, labels: payload.labels,
+        }];
+      if (!products[0].image_url || products.length >= 2) {
+        const err = new Error(products.length >= 2 ? 'This item already has a two-product bundle.' : 'The selected item has no product image.'); err.status = 400; throw err;
+      }
+      products.push(product);
       const { rows: saved } = await client.query(
         `UPDATE drive_set_items SET payload = $1, bonus_cents = bonus_cents + $2, updated_at = NOW()
          WHERE id = $3 RETURNING id, bonus_cents`, [{ ...payload, merge_products: products }, bonusCents, item.id],

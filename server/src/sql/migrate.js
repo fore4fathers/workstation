@@ -186,6 +186,7 @@ export async function migrate() {
       task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
       drive_set_id INTEGER REFERENCES drive_sets(id) ON DELETE CASCADE,
       drive_set_item_id INTEGER REFERENCES drive_set_items(id) ON DELETE CASCADE,
+      component_index INTEGER NOT NULL DEFAULT 0,
       image_index INTEGER NOT NULL,
       selected_label TEXT NOT NULL,
       is_correct BOOLEAN NOT NULL DEFAULT FALSE,
@@ -195,6 +196,7 @@ export async function migrate() {
   `);
   await query(`ALTER TABLE image_commissions ADD COLUMN IF NOT EXISTS drive_set_id INTEGER REFERENCES drive_sets(id) ON DELETE CASCADE`);
   await query(`ALTER TABLE image_commissions ADD COLUMN IF NOT EXISTS drive_set_item_id INTEGER REFERENCES drive_set_items(id) ON DELETE CASCADE`);
+  await query(`ALTER TABLE image_commissions ADD COLUMN IF NOT EXISTS component_index INTEGER NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE image_commissions ADD COLUMN IF NOT EXISTS answered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
   await query(`ALTER TABLE image_commissions ADD COLUMN IF NOT EXISTS response_type TEXT`);
   await query(`UPDATE image_commissions SET response_type = CASE WHEN is_correct THEN 'best_match' ELSE 'alternative_match' END WHERE response_type IS NULL`);
@@ -269,8 +271,9 @@ export async function migrate() {
     }
   }
   await query(`ALTER TABLE image_commissions DROP CONSTRAINT IF EXISTS image_commissions_user_id_task_id_image_index_key`);
-  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_image_commissions_set_image ON image_commissions(drive_set_id, image_index)`);
-  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_image_commissions_set_item ON image_commissions(drive_set_id, drive_set_item_id)`);
+  await query(`DROP INDEX IF EXISTS idx_image_commissions_set_image`);
+  await query(`DROP INDEX IF EXISTS idx_image_commissions_set_item`);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_image_commissions_set_item_component ON image_commissions(drive_set_id, drive_set_item_id, component_index)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_drive_sets_user ON drive_sets(user_id, status)`);
 
   await query(`DELETE FROM platform_deposit_addresses

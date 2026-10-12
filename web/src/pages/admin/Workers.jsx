@@ -19,6 +19,9 @@ export default function AdminWorkers() {
   const [mergeBonus, setMergeBonus] = useState('1.00');
   const [itemBonus, setItemBonus] = useState('0.00');
   const [itemLabels, setItemLabels] = useState('Relevant, Not relevant');
+  const [availableMergeProducts, setAvailableMergeProducts] = useState([]);
+  const [selectedMergeProductRef, setSelectedMergeProductRef] = useState('');
+  const [loadingMergeProducts, setLoadingMergeProducts] = useState(false);
   const [itemAction, setItemAction] = useState(null);
   const [mergeError, setMergeError] = useState('');
 
@@ -49,6 +52,22 @@ export default function AdminWorkers() {
     return workflow === 'drive_set'
       ? `/api/admin/drive-sets/${id}/progress`
       : `/api/admin/engagements/${id}`;
+  }
+
+  async function loadAvailableMergeProducts(workflow, id) {
+    const baseUrl = progressUrl(workflow, id).replace(/\/progress$/, '');
+    setAvailableMergeProducts([]);
+    setSelectedMergeProductRef('');
+    setLoadingMergeProducts(true);
+    try {
+      const data = await api(`${baseUrl}/available-products`);
+      setAvailableMergeProducts(data.products || []);
+      if (!(data.products || []).length) setMergeError('There are no unused product images available in this set.');
+    } catch (err) {
+      setMergeError(err.message);
+    } finally {
+      setLoadingMergeProducts(false);
+    }
   }
 
   useEffect(() => {
@@ -100,7 +119,7 @@ export default function AdminWorkers() {
         method: 'POST',
         body: {
           item_id: Number(selectedItemId),
-          product: { title: mergeTitle, image_url: mergeImageUrl },
+          product_ref: selectedMergeProductRef,
           bonus_cents: Math.round(Number(mergeBonus) * 100),
         },
       });
@@ -108,6 +127,8 @@ export default function AdminWorkers() {
       setEngagementDetails(details);
       setMergeTitle('');
       setMergeImageUrl('');
+      setAvailableMergeProducts([]);
+      setSelectedMergeProductRef('');
       setItemAction(null);
       await loadEngagements();
     } catch (err) {
@@ -127,6 +148,10 @@ export default function AdminWorkers() {
     } else {
       setMergeTitle('');
       setMergeImageUrl('');
+    }
+    if (action === 'merge') {
+      const assignmentId = engagementDetails?.engagement?.assignment_id;
+      if (assignmentId) loadAvailableMergeProducts(engagementDetails.engagement.workflow, assignmentId);
     }
   }
 
@@ -362,7 +387,7 @@ export default function AdminWorkers() {
                   </div>)}</div>
                   <div className="engagement-item-actions">{item.bonus_cents ? <span className="meta">+{money(item.bonus_cents / 100)} bonus</span> : null}
                     {!item.is_completed && <>
-                      <button type="button" className="ghost small" disabled={products.length >= 3} onClick={() => chooseItemAction(item, 'merge')}>{products.length >= 3 ? 'Merge full' : 'Add merge here'}</button>
+                      <button type="button" className="ghost small" disabled={products.length >= 2} onClick={() => chooseItemAction(item, 'merge')}>{products.length >= 2 ? 'Bundle full' : 'Add merge here'}</button>
                       <button type="button" className="ghost small" onClick={() => chooseItemAction(item, 'change')}>Change product</button>
                       {activeEngagement.type === 'image' ? <button type="button" className="ghost small" onClick={() => chooseItemAction(item, 'task')}>Add new item after</button> : null}
                     </>}
@@ -371,8 +396,8 @@ export default function AdminWorkers() {
               })}
             </div>
             {selectedEngagementItem && itemAction ? <form className="card engagement-merge-form" onSubmit={itemAction === 'merge' ? addMergeProduct : itemAction === 'task' ? addEngagementItem : changeEngagementProduct}>
-              <h3>{itemAction === 'merge' ? `Add a merged product at item ${selectedEngagementItem.sort_order + 1}` : itemAction === 'task' ? `Add a new item after item ${selectedEngagementItem.sort_order + 1}` : `Change product at item ${selectedEngagementItem.sort_order + 1}`}</h3>
-              <p className="meta">{itemAction === 'merge' ? 'The original item stays in place. The worker will see both products together for this assignment.' : itemAction === 'task' ? 'The new item is inserted into this worker’s sequence after the selected position.' : 'This changes the selected product for this worker’s assignment only.'}</p>
+              <h3>{itemAction === 'merge' ? `Bundle another product with item ${selectedEngagementItem.sort_order + 1}` : itemAction === 'task' ? `Add a new item after item ${selectedEngagementItem.sort_order + 1}` : `Change product at item ${selectedEngagementItem.sort_order + 1}`}</h3>
+              <p className="meta">{itemAction === 'merge' ? 'Choose an unused image. The two products appear as separate steps but count as one set item.' : itemAction === 'task' ? 'The new item is inserted into this worker’s sequence after the selected position.' : 'This changes the selected product for this worker’s assignment only.'}</p>
               <label>Engagement position</label>
               <select value={selectedItemId} onChange={(event) => {
                 const target = engagementDetails.items.find((item) => item.id === Number(event.target.value));
@@ -380,15 +405,28 @@ export default function AdminWorkers() {
               }}>
                 {engagementDetails.items.filter((item) => !item.is_completed).map((item) => <option key={item.id} value={item.id}>Item {item.sort_order + 1}{item.is_current ? ' · Current' : ' · Upcoming'}</option>)}
               </select>
-              <div className="row">
+              {itemAction === 'merge' ? <>
+                <div className="merge-product-picker" role="radiogroup" aria-label="Choose an unused product image">
+                  {loadingMergeProducts ? <p className="meta">Loading unused product images…</p> : null}
+                  {!loadingMergeProducts && !availableMergeProducts.length ? <p className="meta">No unused product images are available for this set.</p> : null}
+                  {availableMergeProducts.map((product) => <button type="button" key={product.product_ref}
+                    className={`merge-product-choice${selectedMergeProductRef === product.product_ref ? ' selected' : ''}`}
+                    aria-pressed={selectedMergeProductRef === product.product_ref}
+                    onClick={() => setSelectedMergeProductRef(product.product_ref)}>
+                    <img src={product.image_url} alt="" loading="lazy" />
+                    <span>{product.title}</span>
+                  </button>)}
+                </div>
+                <label>Additional bundle reward ($)</label><input required type="number" min="0.01" step="0.01" value={mergeBonus} onChange={(event) => setMergeBonus(event.target.value)} />
+              </> : null}
+              {itemAction !== 'merge' ? <div className="row">
                 <div><label>{itemAction === 'change' ? 'Replacement product name' : 'Added product name'}</label><input required value={mergeTitle} onChange={(event) => setMergeTitle(event.target.value)} /></div>
                 <div><label>Product image URL</label><input required type="url" value={mergeImageUrl} onChange={(event) => setMergeImageUrl(event.target.value)} placeholder="https://…" /></div>
-                {itemAction === 'merge' ? <div><label>Additional merge reward ($)</label><input required type="number" min="0.01" step="0.01" value={mergeBonus} onChange={(event) => setMergeBonus(event.target.value)} /></div> : null}
                 {itemAction === 'task' ? <div><label>Additional item reward ($)</label><input type="number" min="0" step="0.01" value={itemBonus} onChange={(event) => setItemBonus(event.target.value)} /></div> : null}
-              </div>
+              </div> : null}
               {itemAction === 'task' ? <div><label>Answer choices (comma separated)</label><input value={itemLabels} onChange={(event) => setItemLabels(event.target.value)} /></div> : null}
               <div className="engagement-form-actions">
-                <button className="primary small" type="submit" disabled={busy === 'merge' || busy === 'item' || busy === 'change' || !mergeTitle.trim() || !mergeImageUrl.trim()}>{busy ? 'Saving…' : itemAction === 'merge' ? 'Add merge product and bonus' : itemAction === 'task' ? 'Add item to engagement' : 'Save product change'}</button>
+                <button className="primary small" type="submit" disabled={busy === 'merge' || busy === 'item' || busy === 'change' || (itemAction === 'merge' ? !selectedMergeProductRef : !mergeTitle.trim() || !mergeImageUrl.trim())}>{busy ? 'Saving…' : itemAction === 'merge' ? 'Create two-product bundle' : itemAction === 'task' ? 'Add item to engagement' : 'Save product change'}</button>
                 <button type="button" className="ghost small" onClick={() => setItemAction(null)}>Cancel</button>
               </div>
             </form> : <p className="meta">Choose an unfinished position to add a merge, change its product, or add a new item.</p>}

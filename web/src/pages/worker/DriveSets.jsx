@@ -9,6 +9,8 @@ export default function WorkerDriveSets() {
   const [sets, setSets] = useState([]);
   const [activeSet, setActiveSet] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [bundleIndex, setBundleIndex] = useState(0);
+  const [showBundleNotice, setShowBundleNotice] = useState(false);
   const [selectedOption, setSelectedOption] = useState(null);
   const [foreignMode, setForeignMode] = useState(false);
   const [foreignResponse, setForeignResponse] = useState('');
@@ -57,6 +59,12 @@ export default function WorkerDriveSets() {
     return () => window.clearInterval(timer);
   }, [activeSet?.id, activeSet?.status]);
 
+  useEffect(() => {
+    if (!activeSet?.id || !activeSet.items?.some((entry) => entry.is_bundle)) return;
+    const noticeKey = `drive_bundle_notice_${activeSet.id}`;
+    if (localStorage.getItem(noticeKey) !== 'seen') setShowBundleNotice(true);
+  }, [activeSet?.id, activeSet?.items]);
+
   async function startSet(setId) {
     setError('');
     try {
@@ -69,26 +77,33 @@ export default function WorkerDriveSets() {
         items,
         answered_count: Number(data.drive_set.answered_count || 0),
       });
-      const firstUnanswered = items.findIndex((item) => item.selected_label == null);
+      const firstUnanswered = items.findIndex((item) => (item.components || []).some((component) => component.selected_label == null));
       const index = firstUnanswered < 0 ? Math.max(0, items.length - 1) : firstUnanswered;
       setCurrentIndex(index);
+      const pendingComponent = items[index]?.components?.findIndex((component) => component.selected_label == null) ?? 0;
+      setBundleIndex(Math.max(0, pendingComponent));
       setImageLoading(true);
       setSelectedOption(null);
       setForeignMode(false);
       setForeignResponse('');
       setComplete(data.drive_set.status === 'completed');
+      const hasBundle = items.some((entry) => entry.is_bundle);
+      const noticeKey = `drive_bundle_notice_${setId}`;
+      setShowBundleNotice(hasBundle && localStorage.getItem(noticeKey) !== 'seen');
     } catch (e) {
       setError(e.message);
     }
   }
 
   const item = activeSet?.items[currentIndex];
-  const selectedLabel = item?.selected_label;
-  const selectedOptionIndex = item?.options.indexOf(selectedLabel);
+  const component = item?.components?.[bundleIndex] || item;
+  const selectedLabel = component?.selected_label;
+  const selectedOptionIndex = component?.options?.indexOf(selectedLabel);
+  const hasNextBundleProduct = Boolean(item?.is_bundle && bundleIndex < (item.components?.length || 1) - 1);
 
   async function submitAnswer() {
     if (!item || (foreignMode ? !foreignResponse.trim() : selectedOption == null)) return;
-    const response = foreignMode ? foreignResponse.trim() : item.options[selectedOption];
+    const response = foreignMode ? foreignResponse.trim() : component.options[selectedOption];
     const submittedIndex = currentIndex;
     setBusy(true);
     setImageLoading(true);
@@ -100,12 +115,21 @@ export default function WorkerDriveSets() {
           drive_set_id: activeSet.id,
           drive_set_item_id: item.drive_set_item_id,
           image_index: item.image_index,
+          component_index: component.component_index ?? bundleIndex,
           selected_label: response,
           response_type: foreignMode ? 'foreign_language' : 'caption_match',
         },
       });
       const updatedItems = activeSet.items.map((entry) => entry.drive_set_item_id === item.drive_set_item_id
-        ? { ...entry, selected_label: response, response_type: result.response_type, commission_cents: result.commission_cents }
+        ? {
+          ...entry,
+          components: (entry.components || []).map((part, index) => index === (component.component_index ?? bundleIndex)
+            ? { ...part, selected_label: response, response_type: result.response_type, commission_cents: result.commission_cents }
+            : part),
+          selected_label: (entry.components || []).every((part, index) => index === (component.component_index ?? bundleIndex) || part.selected_label != null)
+            ? response : null,
+          commission_cents: Number(entry.commission_cents || 0) + Number(result.commission_cents || 0),
+        }
         : entry);
       setActiveSet((prev) => ({
         ...prev,
@@ -115,8 +139,15 @@ export default function WorkerDriveSets() {
         total_commission: result.total_commission,
       }));
       setSubmissionNotice(`Response saved · ${money(Number(result.commission_cents || 0) / 100)} added`);
-      if (submittedIndex < activeSet.items.length - 1) {
+      const componentCount = item.components?.length || 1;
+      if ((component.component_index ?? bundleIndex) < componentCount - 1) {
+        setBundleIndex((index) => index + 1);
+        setSelectedOption(null);
+        setForeignMode(false);
+        setForeignResponse('');
+      } else if (submittedIndex < activeSet.items.length - 1) {
         setCurrentIndex(submittedIndex + 1);
+        setBundleIndex(0);
         setSelectedOption(null);
         setForeignMode(false);
         setForeignResponse('');
@@ -133,9 +164,19 @@ export default function WorkerDriveSets() {
   }
 
   async function advance() {
+    const componentCount = item?.components?.length || 1;
+    if (bundleIndex < componentCount - 1) {
+      setImageLoading(true);
+      setBundleIndex((index) => index + 1);
+      setSelectedOption(null);
+      setForeignMode(false);
+      setForeignResponse('');
+      return;
+    }
     if (currentIndex < activeSet.items.length - 1) {
       setImageLoading(true);
       setCurrentIndex((index) => index + 1);
+      setBundleIndex(0);
       setSelectedOption(null);
       setForeignMode(false);
       setForeignResponse('');
@@ -158,13 +199,18 @@ export default function WorkerDriveSets() {
     const answeredCount = Number(activeSet.answered_count || 0);
     const hasAnswer = selectedLabel != null;
     const earned = Number(activeSet.total_commission || 0) / 100;
-    const mergedProducts = item.merge_products?.length > 1 ? item.merge_products : null;
+    const productSteps = item.components || [];
+    const isBundleSet = activeSet.items.some((entry) => entry.is_bundle);
+    const bundleShowcaseItem = activeSet.items.find((entry) => entry.is_bundle);
+    const bundleShowcase = bundleShowcaseItem?.merge_products || [];
     return (
       <div className="card drive-trainer">
         <div className="section-h drive-trainer-header">
           <h2>{activeSet.title}</h2>
+          {isBundleSet ? <span className="bundle-set-badge">Bundle Set</span> : null}
           <div className="drive-trainer-summary">
             <span><LocalizedText source={"Image"} />{' '}<b>{currentIndex + 1}{' '}<LocalizedText source={"of"} />{' '}{activeSet.items.length}</b></span>
+            {item.is_bundle ? <span>Bundle product <b>{bundleIndex + 1} of {productSteps.length}</b></span> : null}
             <span><LocalizedText source={"Progress"} />{' '}<b>{answeredCount}{' '}<LocalizedText source={"answered"} /></b></span>
             <span><LocalizedText source={"Closest match"} />{' '}<b>{money(Number(activeSet.commission_cents ?? 50) / 100)}</b></span>
             <span><LocalizedText source={"Alternative"} />{' '}<b>{money(Number(activeSet.alternative_commission_cents ?? 25) / 100)}</b></span>
@@ -178,12 +224,8 @@ export default function WorkerDriveSets() {
             <span className="spinner" style={{ width: 32, height: 32 }} />
             <span><LocalizedText source={"Loading image…"} /></span>
           </div> : null}
-          {mergedProducts ? <div className="drive-merged-products">{mergedProducts.map((product, index) => <figure key={`${product.image_url}-${index}`}>
-            <img className="drive-trainer-image" src={product.image_url} alt={product.title || `Product ${index + 1}`}
-              onLoad={() => setImageLoading(false)} onError={() => setImageLoading(false)} />
-            <figcaption>{product.title || `Product ${index + 1}`}</figcaption>
-          </figure>)}</div> : <img key={`${activeSet.id}:${item.drive_set_item_id}`} className="drive-trainer-image" src={item.image_url}
-            alt={trText("Image labeling item")} onLoad={() => setImageLoading(false)} onError={() => setImageLoading(false)} />}
+          <img key={`${activeSet.id}:${item.drive_set_item_id}:${bundleIndex}`} className="drive-trainer-image" src={component?.image_url || item.image_url}
+            alt={component?.title || trText("Image labeling item")} onLoad={() => setImageLoading(false)} onError={() => setImageLoading(false)} />
         </div>
         <h3>{activeSet.civitai_backed
           ? (<LocalizedText source={"Which generation caption best matches this image?"} />)
@@ -195,15 +237,15 @@ export default function WorkerDriveSets() {
           <button type="button" className={foreignMode ? 'primary' : 'ghost'} disabled={busy || imageLoading || hasAnswer || complete}
             onClick={() => { setForeignMode(true); setSelectedOption(null); }}><LocalizedText source={"Respond in another language"} /></button>
         </div>
-        {hasAnswer && item.response_type === 'foreign_language' ? (
-          <div className="drive-submitted-answer">{item.selected_label}</div>
+        {hasAnswer && component.response_type === 'foreign_language' ? (
+          <div className="drive-submitted-answer">{component.selected_label}</div>
         ) : foreignMode && !hasAnswer ? (
           <label className="drive-foreign-answer"><LocalizedText source={"Your response in another language"} /><textarea value={foreignResponse} onChange={(e) => setForeignResponse(e.target.value)} rows={4}
               maxLength={4000} placeholder={trText("Describe what you see in any language")} disabled={busy || imageLoading || complete} />
           </label>
         ) : !foreignMode ? (
           <div className="drive-trainer-options">
-            {item.options.map((option, index) => (
+            {(component?.options || item.options).map((option, index) => (
               <button key={option} type="button" title={option}
                 className={`drive-caption-option ${((hasAnswer && index === selectedOptionIndex) || (!hasAnswer && selectedOption === index)) ? 'selected' : ''}`}
                 onClick={() => setSelectedOption(index)} disabled={busy || imageLoading || hasAnswer || complete}>
@@ -213,13 +255,20 @@ export default function WorkerDriveSets() {
           </div>
         ) : null}
         {hasAnswer && <p className="drive-response-feedback">
-          {item.response_type === 'best_match' ? (<LocalizedText source={"Closest caption"} />) : item.response_type === 'foreign_language' ? (<LocalizedText source={"Other-language response"} />) : (<LocalizedText source={"Alternative useful caption"} />)}
-          {' · '}{money(Number(item.commission_cents || 0) / 100)}{' '}<LocalizedText source={"reward earned"} /></p>}
+          {component.response_type === 'best_match' ? (<LocalizedText source={"Closest caption"} />) : component.response_type === 'foreign_language' ? (<LocalizedText source={"Other-language response"} />) : (<LocalizedText source={"Alternative useful caption"} />)}
+          {' · '}{money(Number(component.commission_cents || 0) / 100)}{' '}<LocalizedText source={"reward earned"} /></p>}
         {error ? <p className="error">{error}</p> : null}
-        <div className={`row-actions${currentIndex === 0 ? ' single-action' : ''}`}>
-          {currentIndex > 0 ? <button className="ghost" disabled={busy || imageLoading} onClick={() => {
+        <div className={`row-actions${currentIndex === 0 && bundleIndex === 0 ? ' single-action' : ''}`}>
+          {currentIndex > 0 || bundleIndex > 0 ? <button className="ghost" disabled={busy || imageLoading} onClick={() => {
             setImageLoading(true);
-            setCurrentIndex((index) => index - 1);
+            if (bundleIndex > 0) setBundleIndex((index) => index - 1);
+            else {
+              const previousIndex = currentIndex - 1;
+              setCurrentIndex(previousIndex);
+              const previousItem = activeSet.items[previousIndex];
+              const lastComponent = Math.max(0, (previousItem?.components?.length || 1) - 1);
+              setBundleIndex(lastComponent);
+            }
             setSelectedOption(null);
             setForeignMode(false);
             setForeignResponse('');
@@ -228,6 +277,8 @@ export default function WorkerDriveSets() {
             <button className="primary" disabled={busy || (foreignMode ? !foreignResponse.trim() : selectedOption == null)} onClick={submitAnswer}>
               {busy ? (<LocalizedText source={"Submitting..."} />) : (<LocalizedText source={"Submit response"} />)}
             </button>
+          ) : hasNextBundleProduct ? (
+            <button className="primary" disabled={busy} onClick={advance}>Next product</button>
           ) : currentIndex < activeSet.items.length - 1 ? (
             <button className="primary" disabled={busy} onClick={advance}><LocalizedText source={"Next image"} /></button>
           ) : complete ? (
@@ -239,6 +290,21 @@ export default function WorkerDriveSets() {
           )}
         </div>
         {complete && <p className="meta" style={{ color: 'green' }}><LocalizedText source={"Set completed. Commission earned:"} />{' '}{money(earned)}.</p>}
+        {showBundleNotice ? <div className="bundle-notice-backdrop" role="presentation">
+          <section className="bundle-notice-dialog" role="dialog" aria-modal="true" aria-labelledby="bundle-notice-title">
+            <div className="bundle-notice-art">
+              {bundleShowcase.slice(0, 2).map((product, index) => <img key={`${product.image_url}-${index}`} src={product.image_url} alt={product.title || `Bundle product ${index + 1}`} />)}
+            </div>
+            <span className="bundle-set-badge">Bundle Set opportunity</span>
+            <h2 id="bundle-notice-title">Earn more from bundled products</h2>
+            <p>Each bundle counts as one item in your set. Label both products as they appear to receive the extra bundle reward.</p>
+            {bundleShowcaseItem?.bonus_cents ? <p className="bundle-notice-reward">Extra bundle reward: <b>{money(bundleShowcaseItem.bonus_cents / 100)}</b></p> : null}
+            <button className="primary" type="button" onClick={() => {
+              localStorage.setItem(`drive_bundle_notice_${activeSet.id}`, 'seen');
+              setShowBundleNotice(false);
+            }}>Continue</button>
+          </section>
+        </div> : null}
       </div>
     );
   }

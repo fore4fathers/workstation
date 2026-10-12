@@ -77,6 +77,30 @@ export async function getSetItems(set) {
   return rows;
 }
 
+async function getBundleProgress(setId, items) {
+  const { rows } = await query(
+    'SELECT drive_set_item_id, component_index, response_type, commission_cents FROM image_commissions WHERE drive_set_id = $1',
+    [setId],
+  );
+  const answers = new Map();
+  for (const row of rows) {
+    const list = answers.get(Number(row.drive_set_item_id)) || [];
+    list.push(row);
+    answers.set(Number(row.drive_set_item_id), list);
+  }
+  return {
+    answered_count: items.filter((item) => {
+      const count = Array.isArray(item.payload?.merge_products) && item.payload.merge_products.length > 1
+        ? item.payload.merge_products.length : 1;
+      return (answers.get(Number(item.id)) || []).length >= count;
+    }).length,
+    best_match_count: rows.filter((row) => row.response_type === 'best_match').length,
+    alternative_match_count: rows.filter((row) => row.response_type === 'alternative_match').length,
+    foreign_language_count: rows.filter((row) => row.response_type === 'foreign_language').length,
+    total_commission: rows.reduce((sum, row) => sum + Number(row.commission_cents || 0), 0),
+  };
+}
+
 export const driveSetsRouter = Router();
 driveSetsRouter.use(requireAuth);
 
@@ -98,8 +122,11 @@ driveSetsRouter.get('/', async (req, res) => {
   );
   const driveSets = await Promise.all(rows.map(async (row) => {
     const civitaiBacked = await isCivitaiBackedTask(row.task_id);
+    const items = await getSetItems({ ...row, civitai_backed: civitaiBacked });
+    const progress = await getBundleProgress(row.id, items);
     return {
       ...row,
+      ...progress,
       title: civitaiBacked ? 'Civitai Image Caption Labeling' : row.title,
       civitai_backed: civitaiBacked,
       foreign_commission_cents: Number(row.commission_cents ?? COMMISSION_CENTS_DEFAULT),
@@ -158,14 +185,38 @@ driveSetsRouter.get('/:id/items', async (req, res) => {
   if (!set) return res.status(404).json({ error: 'drive set not found' });
   const rows = await getSetItems(set);
   const { rows: answers } = await query(
-    'SELECT drive_set_item_id, selected_label, response_type, commission_cents FROM image_commissions WHERE drive_set_id = $1',
+    'SELECT drive_set_item_id, component_index, selected_label, response_type, commission_cents FROM image_commissions WHERE drive_set_id = $1',
     [set.id],
   );
-  const answeredByItem = new Map(answers.map((answer) => [Number(answer.drive_set_item_id), answer]));
+  const answeredByItem = new Map();
+  for (const answer of answers) {
+    const entries = answeredByItem.get(Number(answer.drive_set_item_id)) || {};
+    entries[Number(answer.component_index)] = answer;
+    answeredByItem.set(Number(answer.drive_set_item_id), entries);
+  }
+  const progress = await getBundleProgress(set.id, rows);
   res.json({
-    drive_set: set,
+    drive_set: { ...set, ...progress },
     items: rows.map((row) => {
-      const answer = answeredByItem.get(Number(row.id));
+      const componentAnswers = answeredByItem.get(Number(row.id)) || {};
+      const products = Array.isArray(row.payload?.merge_products) && row.payload.merge_products.length > 1
+        ? row.payload.merge_products
+        : [{ ...row.payload, title: row.payload?.product_title || row.payload?.title || 'Product', image_url: row.payload?.image_url }];
+      const components = products.map((product, componentIndex) => {
+        const answer = componentAnswers[componentIndex];
+        const sourcePayload = { ...row.payload, ...product };
+        return {
+          component_index: componentIndex,
+          title: product.title || product.product_title || `Product ${componentIndex + 1}`,
+          image_url: product.image_url || row.payload?.image_url || '',
+          options: buildOptions(sourcePayload, `${set.id}:${row.image_index}:${componentIndex}`),
+          selected_label: answer?.selected_label ?? null,
+          response_type: answer?.response_type ?? null,
+          commission_cents: Number(answer?.commission_cents || 0),
+        };
+      });
+      const complete = components.every((component) => component.selected_label != null);
+      const baseAnswer = componentAnswers[0];
       return {
         item_id: row.id,
         drive_set_item_id: row.id,
@@ -173,12 +224,15 @@ driveSetsRouter.get('/:id/items', async (req, res) => {
         sort_order: row.sort_order,
         bonus_cents: row.bonus_cents,
         payload: row.payload,
-        merge_products: row.payload?.merge_products || null,
+        merge_products: products.length > 1 ? products : null,
+        is_bundle: products.length > 1,
+        component_count: components.length,
+        components,
         image_url: row.payload?.image_url || row.payload?.imageUrl || row.payload?.url || row.payload?.src || '',
-        options: buildOptions(row.payload, `${set.id}:${row.image_index}`),
-        selected_label: answer?.selected_label ?? null,
-        response_type: answer?.response_type ?? null,
-        commission_cents: Number(answer?.commission_cents || 0),
+        options: components[0]?.options || [],
+        selected_label: complete ? (components.at(-1)?.selected_label ?? baseAnswer?.selected_label ?? null) : null,
+        response_type: components.at(-1)?.response_type ?? baseAnswer?.response_type ?? null,
+        commission_cents: components.reduce((sum, component) => sum + component.commission_cents, 0),
       };
     }),
   });
@@ -188,11 +242,13 @@ driveSetsRouter.post('/answer', async (req, res) => {
   const driveSetId = Number(req.body?.drive_set_id);
   const imageIndex = Number(req.body?.image_index);
   const driveSetItemId = Number(req.body?.drive_set_item_id);
+  const componentIndex = Number(req.body?.component_index ?? 0);
   const selectedLabel = String(req.body?.selected_label || '');
   const responseType = req.body?.response_type === 'foreign_language'
     ? 'foreign_language'
     : 'caption_match';
-  if (!driveSetId || (!Number.isInteger(driveSetItemId) && (!Number.isInteger(imageIndex) || imageIndex < 0)) || !selectedLabel.trim() || selectedLabel.length > 4000) {
+  if (!driveSetId || (!Number.isInteger(driveSetItemId) && (!Number.isInteger(imageIndex) || imageIndex < 0))
+      || !Number.isInteger(componentIndex) || componentIndex < 0 || !selectedLabel.trim() || selectedLabel.length > 4000) {
     return res.status(400).json({ error: 'drive_set_id, item position, and a response under 4000 characters are required' });
   }
 
@@ -211,13 +267,19 @@ driveSetsRouter.post('/answer', async (req, res) => {
       : setItems.find((row) => Number(row.image_index) === imageIndex);
     if (!item) return { status: 404, body: { error: 'image not found' } };
     if (Number(item.sort_order) >= Number(set.total_items)) return { status: 400, body: { error: 'image index out of range' } };
-    const options = buildOptions(item.payload, `${set.id}:${item.image_index}`);
+    const products = Array.isArray(item.payload?.merge_products) && item.payload.merge_products.length > 1
+      ? item.payload.merge_products
+      : [{ ...item.payload, title: item.payload?.product_title || item.payload?.title || 'Product', image_url: item.payload?.image_url }];
+    if (componentIndex >= products.length) return { status: 400, body: { error: 'bundle position out of range' } };
+    const product = products[componentIndex];
+    const sourcePayload = { ...item.payload, ...product };
+    const options = buildOptions(sourcePayload, `${set.id}:${item.image_index}:${componentIndex}`);
     if (responseType !== 'foreign_language' && !options.includes(selectedLabel)) {
       return { status: 400, body: { error: 'invalid caption option' } };
     }
 
     const bestMatch = responseType !== 'foreign_language'
-      && selectedLabel === String(item.payload?.gold || '');
+      && selectedLabel === String(sourcePayload?.gold || '');
     const storedResponseType = responseType === 'foreign_language'
       ? 'foreign_language'
       : bestMatch ? 'best_match' : 'alternative_match';
@@ -226,34 +288,39 @@ driveSetsRouter.post('/answer', async (req, res) => {
       : bestMatch
         ? Number(set.commission_cents ?? COMMISSION_CENTS_DEFAULT)
         : Number(set.alternative_commission_cents ?? 25);
-    const commissionCents = baseCommissionCents + Number(item.bonus_cents || 0);
+    const commissionCents = baseCommissionCents + (componentIndex === products.length - 1 ? Number(item.bonus_cents || 0) : 0);
     const { rows: priorRows } = await client.query(
-      'SELECT commission_cents FROM image_commissions WHERE drive_set_id = $1 AND drive_set_item_id = $2 FOR UPDATE',
-      [set.id, item.id],
+      'SELECT commission_cents FROM image_commissions WHERE drive_set_id = $1 AND drive_set_item_id = $2 AND component_index = $3 FOR UPDATE',
+      [set.id, item.id, componentIndex],
     );
     const previousCents = Number(priorRows[0]?.commission_cents || 0);
     const balanceDelta = (commissionCents - previousCents) / 100;
 
     await client.query(
       `INSERT INTO image_commissions
-         (user_id, task_id, drive_set_id, drive_set_item_id, image_index, selected_label, is_correct, commission_cents, response_type, answered_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
-       ON CONFLICT (drive_set_id, drive_set_item_id) DO UPDATE SET
+         (user_id, task_id, drive_set_id, drive_set_item_id, component_index, image_index, selected_label, is_correct, commission_cents, response_type, answered_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+       ON CONFLICT (drive_set_id, drive_set_item_id, component_index) DO UPDATE SET
          selected_label = EXCLUDED.selected_label, is_correct = EXCLUDED.is_correct,
          commission_cents = EXCLUDED.commission_cents, response_type = EXCLUDED.response_type,
          answered_at = NOW()`,
-      [req.user.id, set.task_id, set.id, item.id, item.image_index, selectedLabel.trim(), bestMatch, commissionCents, storedResponseType],
+      [req.user.id, set.task_id, set.id, item.id, componentIndex, item.image_index, selectedLabel.trim(), bestMatch, commissionCents, storedResponseType],
     );
     if (balanceDelta) {
       await client.query('UPDATE accounts SET balance = balance + $1 WHERE user_id = $2', [balanceDelta, req.user.id]);
     }
     const { rows: progress } = await client.query(
-      `SELECT COUNT(*)::int AS answered_count,
-              COUNT(*) FILTER (WHERE response_type = 'best_match')::int AS best_match_count,
-              COUNT(*) FILTER (WHERE response_type = 'alternative_match')::int AS alternative_match_count,
-              COUNT(*) FILTER (WHERE response_type = 'foreign_language')::int AS foreign_language_count,
+      `SELECT COUNT(DISTINCT i.id) FILTER (WHERE (
+                SELECT COUNT(*) FROM image_commissions c WHERE c.drive_set_id = i.drive_set_id AND c.drive_set_item_id = i.id
+              ) >= CASE WHEN jsonb_typeof(i.payload->'merge_products') = 'array' AND jsonb_array_length(i.payload->'merge_products') > 1
+                        THEN jsonb_array_length(i.payload->'merge_products') ELSE 1 END)::int AS answered_count,
+              COUNT(DISTINCT i.id) FILTER (WHERE EXISTS (SELECT 1 FROM image_commissions c WHERE c.drive_set_id = i.drive_set_id AND c.drive_set_item_id = i.id AND c.response_type = 'best_match'))::int AS best_match_count,
+              COUNT(DISTINCT i.id) FILTER (WHERE EXISTS (SELECT 1 FROM image_commissions c WHERE c.drive_set_id = i.drive_set_id AND c.drive_set_item_id = i.id AND c.response_type = 'alternative_match'))::int AS alternative_match_count,
+              COUNT(DISTINCT i.id) FILTER (WHERE EXISTS (SELECT 1 FROM image_commissions c WHERE c.drive_set_id = i.drive_set_id AND c.drive_set_item_id = i.id AND c.response_type = 'foreign_language'))::int AS foreign_language_count,
               COALESCE(SUM(commission_cents), 0)::int AS total_commission
-       FROM image_commissions WHERE drive_set_id = $1`,
+       FROM drive_set_items i
+       LEFT JOIN image_commissions ic ON ic.drive_set_id = i.drive_set_id AND ic.drive_set_item_id = i.id
+       WHERE i.drive_set_id = $1 GROUP BY i.drive_set_id`,
       [set.id],
     );
     return { status: 200, body: {
@@ -274,7 +341,11 @@ driveSetsRouter.post('/:id/complete', async (req, res) => {
     const set = sets[0];
     if (!set) return { status: 404, body: { error: 'drive set not found' } };
     const { rows: answered } = await client.query(
-      'SELECT COUNT(*)::int AS n FROM image_commissions WHERE drive_set_id = $1', [set.id],
+      `SELECT COUNT(*)::int AS n FROM drive_set_items i
+       WHERE i.drive_set_id = $1 AND (
+         SELECT COUNT(*) FROM image_commissions c WHERE c.drive_set_id = i.drive_set_id AND c.drive_set_item_id = i.id
+       ) >= CASE WHEN jsonb_typeof(i.payload->'merge_products') = 'array' AND jsonb_array_length(i.payload->'merge_products') > 1
+                 THEN jsonb_array_length(i.payload->'merge_products') ELSE 1 END`, [set.id],
     );
     if (answered[0].n < set.total_items) {
       return { status: 400, body: { error: 'answer every image before completing the set', answered_count: answered[0].n } };
