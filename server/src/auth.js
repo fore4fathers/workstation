@@ -9,6 +9,14 @@ export function signToken(user) {
   );
 }
 
+export function signImpersonationToken(user, adminId) {
+  return jwt.sign(
+    { id: user.id, role: 'worker', email: user.email, impersonated_by: adminId },
+    config.jwtSecret,
+    { expiresIn: '1h' },
+  );
+}
+
 export function verifyToken(token) {
   return jwt.verify(token, config.jwtSecret);
 }

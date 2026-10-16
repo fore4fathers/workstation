@@ -484,5 +484,9 @@
   "notifications.withdrawalRequested": "{name} requested a withdrawal of {amount}.",
   "notifications.withdrawalSubmitted": "Your withdrawal request for {amount} was submitted.",
   "notifications.withdrawalApprovedAdmin": "{name}'s withdrawal of {amount} was approved.",
-  "notifications.withdrawalApprovedWorker": "Your withdrawal request for {amount} was approved."
+  "notifications.withdrawalApprovedWorker": "Your withdrawal request for {amount} was approved.",
+  "View as client": "View as client",
+  "Opening account...": "Opening account...",
+  "Viewing this account as an administrator": "Viewing this account as an administrator",
+  "Return to admin": "Return to admin"
 }

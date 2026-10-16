@@ -1734,3 +1734,6 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--canvas)
   .tm-landing .landing-copy h1 { font-size: clamp(36px, 9vw, 48px); }
   .tm-landing .landing-steps { padding: 36px 22px 44px; }
 }
+
+.impersonation-banner { position: sticky; top: 0; z-index: 200; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 9px 16px; background: #fff2d7; color: #684400; border-bottom: 1px solid #e8c77e; font-size: 13px; font-weight: 650; }
+.impersonation-banner .ghost { width: auto; margin: 0; padding: 6px 10px; color: inherit; border-color: currentColor; }

@@ -484,5 +484,9 @@
   "notifications.withdrawalRequested": "طلب {name} سحب {amount}.",
   "notifications.withdrawalSubmitted": "تم إرسال طلب السحب بمبلغ {amount}.",
   "notifications.withdrawalApprovedAdmin": "تمت الموافقة على طلب سحب {name} بمبلغ {amount}.",
-  "notifications.withdrawalApprovedWorker": "تمت الموافقة على طلب السحب الخاص بك بمبلغ {amount}."
+  "notifications.withdrawalApprovedWorker": "تمت الموافقة على طلب السحب الخاص بك بمبلغ {amount}.",
+  "View as client": "عرض الحساب كعميل",
+  "Opening account...": "جارٍ فتح الحساب...",
+  "Viewing this account as an administrator": "أنت تعرض هذا الحساب بصفتك مسؤولاً",
+  "Return to admin": "العودة إلى لوحة المسؤول"
 }

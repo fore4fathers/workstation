@@ -1,12 +1,14 @@
 import { LocalizedText } from '../../i18n.jsx';
 import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Link, useParams } from 'react-router-dom';
-import { api } from '../../api.js';
+import { api, getToken, setToken } from '../../api.js';
 import { ledgerLabel, money, paymentMethodLabel, when } from '../../format.js';
 
 export default function AdminWorkerDetail() {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const { id } = useParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -21,6 +23,17 @@ export default function AdminWorkerDetail() {
   if (!data) return <p className="meta"><LocalizedText source={"Loading account…"} /></p>;
 
   const { worker, account, addresses, deposits, withdrawals, ledger } = data;
+  async function viewAsWorker() {
+    try {
+      const result = await api(`/api/admin/workers/${id}/impersonate`, { method: 'POST' });
+      sessionStorage.setItem('aw_admin_token', getToken());
+      setToken(result.token);
+      navigate('/');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <div className="admin-worker-account">
       <div className="section-h">
@@ -28,7 +41,12 @@ export default function AdminWorkerDetail() {
           <h2>{worker.display_name}</h2>
           <p className="meta">{worker.email}{worker.phone ? ` · ${worker.phone}` : ''}</p>
         </div>
-        <Link className="ghost small" to="/workers"><LocalizedText source={"Back to workers"} /></Link>
+        <div className="admin-worker-actions">
+          <button type="button" className="primary small" onClick={viewAsWorker}>
+            <LocalizedText source={"View as client"} />
+          </button>
+          <Link className="ghost small" to="/workers"><LocalizedText source={"Back to workers"} /></Link>
+        </div>
       </div>
 
       <div className="admin-account-kpis">

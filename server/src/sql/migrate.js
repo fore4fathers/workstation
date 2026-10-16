@@ -8,6 +8,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export async function migrate() {
   const schema = fs.readFileSync(path.join(here, 'schema.sql'), 'utf8');
   await query(schema);
+  await query(`
+    CREATE TABLE IF NOT EXISTS admin_impersonation_log (
+      id SERIAL PRIMARY KEY,
+      admin_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      worker_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      ip_address TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
   await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS single_pay_cents INTEGER`);
   await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS engagement_type TEXT NOT NULL DEFAULT 'single'`);
   await query(`ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_engagement_type_check`);

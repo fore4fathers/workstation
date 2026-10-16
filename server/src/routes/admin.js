@@ -4,7 +4,7 @@ import path from 'node:path';
 import { query, withTransaction } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
-import { dollarsFromCents } from '../auth.js';
+import { dollarsFromCents, signImpersonationToken } from '../auth.js';
 import { clampTier, tierInfo } from '../tiers.js';
 import { config } from '../config.js';
 import { saveImageUpload } from '../uploads.js';
@@ -764,6 +764,24 @@ adminRouter.get('/workers/:id', async (req, res) => {
     withdrawals: withdrawals.rows.map((withdrawal) => ({ ...withdrawal, amount: Number(withdrawal.amount) })),
     ledger: ledger.rows.map((entry) => ({ ...entry, amount: Number(entry.amount) })),
   });
+});
+
+adminRouter.post('/workers/:id/impersonate', async (req, res) => {
+  const { rows } = await query(
+    `SELECT id, email, display_name, role, avatar_url, is_active, is_verified,
+            lifetime_completed, tier, phone, created_at
+     FROM users WHERE id = $1 AND role = 'worker'`,
+    [req.params.id],
+  );
+  const worker = rows[0];
+  if (!worker) return res.status(404).json({ error: 'worker not found' });
+  const token = signImpersonationToken(worker, req.user.id);
+  await query(
+    `INSERT INTO admin_impersonation_log (admin_id, worker_id, ip_address)
+     VALUES ($1, $2, $3)`,
+    [req.user.id, worker.id, req.ip || null],
+  );
+  res.json({ token, user: worker });
 });
 
 adminRouter.post('/workers/:id/deposit-address', async (req, res) => {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { logout } from '../session.js';
+import { logout, returnToAdmin } from '../session.js';
 import { LanguageToggle, useLanguage } from '../i18n.jsx';
 import WithdrawalNotifications from '../WithdrawalNotifications.jsx';
 
@@ -70,6 +70,14 @@ export default function WorkerLayout({ session }) {
         </div>
       </aside>
       <div className="tm-main">
+        {session?.impersonation ? (
+          <div className="impersonation-banner" role="status">
+            <span>{trText('Viewing this account as an administrator')}</span>
+            <button type="button" className="ghost small" onClick={() => returnToAdmin(navigate)}>
+              {trText('Return to admin')}
+            </button>
+          </div>
+        ) : null}
         <header className="tm-top">
           <div />
           <div className="tm-hello">

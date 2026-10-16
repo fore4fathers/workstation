@@ -164,6 +164,7 @@ meRouter.get('/', requireAuth, async (req, res) => {
   );
   res.json({
     user: { ...publicUser(req.user), ...tierInfo(req.user.tier) },
+    impersonation: req.auth?.impersonated_by ? { admin_id: req.auth.impersonated_by } : null,
     account: {
       balance: Number(acct[0]?.balance || 0),
       frozen: Number(acct[0]?.frozen || 0),
