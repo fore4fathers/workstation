@@ -3,7 +3,7 @@ import { pool, query } from '../db.js';
 import { migrate } from './migrate.js';
 
 const workers = [
-  { email: 'john@example.invalid', name: 'John', password: 'john123', balance: 189.9, lifetime: 142 },
+  { email: 'john@demo.local', name: 'John', password: 'john123', balance: 189.9, lifetime: 142 },
   { email: 'mia@example.invalid', name: 'Mia', password: 'mia123', balance: 42.1, lifetime: 80 },
   { email: 'lee@example.invalid', name: 'Lee', password: 'lee123', balance: 12, lifetime: 40 },
   { email: 'sam@example.invalid', name: 'Sam', password: 'sam123', balance: 8, lifetime: 22 },
@@ -38,7 +38,7 @@ export async function seed({ reset = true } = {}) {
   const { rows: adminRows } = await query(
     `INSERT INTO users (email, password_hash, display_name, role)
      VALUES ($1,$2,'Ada Admin','admin') RETURNING id`,
-    ['admin@example.invalid', adminHash],
+    ['admin@demo.local', adminHash],
   );
   const adminId = adminRows[0].id;
   await query('INSERT INTO accounts (user_id, balance, frozen, pending) VALUES ($1, 0, 0, 0)', [adminId]);

@@ -1,4 +1,4 @@
-import { LocalizedText } from '../../i18n.jsx';
+import { LocalizedText, localizedContent } from '../../i18n.jsx';
 import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
@@ -7,7 +7,7 @@ import { IconBack } from '../../icons.jsx';
 import { Overlay, Spinner } from '../../ui.jsx';
 
 export default function TaskWork() {
-  const { t: trText } = useLanguage();
+  const { t: trText, language } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
   const tier = useOutletContext()?.session?.user?.tier ?? 2;
@@ -132,7 +132,7 @@ export default function TaskWork() {
     <>
       <div className="topbar keep">
         <Link className="icon-btn" to="/tasks" aria-label={trText("Back")}><IconBack /></Link>
-        <h1>{task.title}</h1>
+        <h1>{localizedContent(task.title, task.translations, language, 'title')}</h1>
         <span className="meta">{idx + 1}/{items.length}</span>
       </div>
       <div className="work-progress" aria-hidden="true">
@@ -148,10 +148,13 @@ export default function TaskWork() {
             {task.type === 'image' ? (
               p.merge_products?.length > 1 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(2, p.merge_products.length)}, minmax(0, 1fr))`, gap: 10, marginBottom: 16 }}>
-                  {p.merge_products.map((product, i) => <figure key={`${product.image_url}-${i}`} style={{ margin: 0 }}>
-                    <img className="work-img" src={product.image_url} alt={product.title || `Merged product ${i + 1}`} />
-                    <figcaption className="meta" style={{ paddingTop: 6 }}>{product.title || `Product ${i + 1}`}</figcaption>
-                  </figure>)}
+                  {p.merge_products.map((product, i) => {
+                    const productTranslations = product.translations || { ar: p.translations?.ar?.merge_products?.[i] };
+                    return <figure key={`${product.image_url}-${i}`} style={{ margin: 0 }}>
+                      <img className="work-img" src={product.image_url} alt={localizedContent(product.title, productTranslations, language, 'title') || `Merged product ${i + 1}`} />
+                      <figcaption className="meta" style={{ paddingTop: 6 }}>{localizedContent(product.title || product.product_title, productTranslations, language, 'title') || `Product ${i + 1}`}</figcaption>
+                    </figure>;
+                  })}
                 </div>
               ) : (
               <div className="media-box">
@@ -159,7 +162,7 @@ export default function TaskWork() {
               </div>
               )
             ) : (
-              <div className="utterance">{task.type === 'text' ? p.text : p.utterance}</div>
+              <div className="utterance">{localizedContent(task.type === 'text' ? p.text : p.utterance, p.translations, language, task.type === 'text' ? 'text' : 'utterance')}</div>
             )}
             <div className="chips">
               {choices.map((label) => (
@@ -169,7 +172,7 @@ export default function TaskWork() {
                   className={`chip${answers[item.id] === label ? ' on' : ''}`}
                   onClick={() => setAnswers({ ...answers, [item.id]: label })}
                 >
-                  {label}
+                  {localizedContent(label, p.translations, language, choices === p.intents ? 'intents' : 'labels')}
                 </button>
               ))}
             </div>

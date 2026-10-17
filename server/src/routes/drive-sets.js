@@ -101,6 +101,50 @@ async function getBundleProgress(setId, items) {
   };
 }
 
+function bundleExpectedPayoutCents(set, item, componentCount) {
+  return (Number(set.commission_cents ?? COMMISSION_CENTS_DEFAULT) * componentCount)
+    + Number(item.bonus_cents || 0);
+}
+
+async function refreshBalanceGate(set, items, answeredByItem) {
+  const currentItem = items.find((item) => {
+    const count = Array.isArray(item.payload?.merge_products) && item.payload.merge_products.length > 1
+      ? item.payload.merge_products.length : 1;
+    return Object.keys(answeredByItem.get(Number(item.id)) || {}).length < count;
+  });
+  const products = Array.isArray(currentItem?.payload?.merge_products) && currentItem.payload.merge_products.length > 1
+    ? currentItem.payload.merge_products : [];
+  if (!currentItem || products.length < 2) {
+    await query(
+      `UPDATE drive_sets SET balance_blocked_at = NULL, balance_blocked_item_id = NULL,
+         balance_required_cents = NULL, balance_available_cents = NULL WHERE id = $1`,
+      [set.id],
+    );
+    return { blocked: false };
+  }
+
+  const { rows } = await query('SELECT balance, frozen FROM accounts WHERE user_id = $1', [set.user_id]);
+  const account = rows[0] || { balance: 0, frozen: 0 };
+  const availableCents = Math.max(0, Math.round((Number(account.balance || 0) - Number(account.frozen || 0)) * 100));
+  const requiredCents = bundleExpectedPayoutCents(set, currentItem, products.length);
+  const blocked = availableCents < requiredCents;
+  await query(
+    `UPDATE drive_sets SET balance_blocked_at = CASE WHEN $2::boolean THEN COALESCE(balance_blocked_at, NOW()) ELSE NULL END,
+       balance_blocked_item_id = CASE WHEN $2::boolean THEN $3::integer ELSE NULL::integer END,
+       balance_required_cents = CASE WHEN $2::boolean THEN $4::integer ELSE NULL::integer END,
+       balance_available_cents = CASE WHEN $2::boolean THEN $5::integer ELSE NULL::integer END
+     WHERE id = $1`,
+    [set.id, blocked, currentItem.id, requiredCents, availableCents],
+  );
+  return {
+    blocked,
+    item_id: blocked ? Number(currentItem.id) : null,
+    required_cents: requiredCents,
+    available_cents: availableCents,
+    deficit_cents: Math.max(0, requiredCents - availableCents),
+  };
+}
+
 export const driveSetsRouter = Router();
 driveSetsRouter.use(requireAuth);
 
@@ -195,8 +239,9 @@ driveSetsRouter.get('/:id/items', async (req, res) => {
     answeredByItem.set(Number(answer.drive_set_item_id), entries);
   }
   const progress = await getBundleProgress(set.id, rows);
+  const balanceGate = await refreshBalanceGate(set, rows, answeredByItem);
   res.json({
-    drive_set: { ...set, ...progress },
+    drive_set: { ...set, ...progress, balance_gate: balanceGate },
     items: rows.map((row) => {
       const componentAnswers = answeredByItem.get(Number(row.id)) || {};
       const products = Array.isArray(row.payload?.merge_products) && row.payload.merge_products.length > 1
@@ -205,11 +250,23 @@ driveSetsRouter.get('/:id/items', async (req, res) => {
       const components = products.map((product, componentIndex) => {
         const answer = componentAnswers[componentIndex];
         const sourcePayload = { ...row.payload, ...product };
+        const rootTranslations = row.payload.translations?.ar || {};
+        const translations = product.translations?.ar
+          || rootTranslations.merge_products?.[componentIndex]
+          || rootTranslations;
+        const choices = buildOptions(sourcePayload, `${set.id}:${row.image_index}:${componentIndex}`);
+        const sourceChoices = sourcePayload.labels || sourcePayload.intents || [];
         return {
           component_index: componentIndex,
           title: product.title || product.product_title || `Product ${componentIndex + 1}`,
+          translations: { ar: translations },
           image_url: product.image_url || row.payload?.image_url || '',
-          options: buildOptions(sourcePayload, `${set.id}:${row.image_index}:${componentIndex}`),
+          options: choices,
+          option_translations: choices.map((option) => {
+            if (option === String(sourcePayload.gold || '')) return translations.gold || translations.labels?.[sourceChoices.indexOf(option)] || option;
+            const optionIndex = sourceChoices.indexOf(option);
+            return (translations.labels || translations.intents)?.[optionIndex] || option;
+          }),
           selected_label: answer?.selected_label ?? null,
           response_type: answer?.response_type ?? null,
           commission_cents: Number(answer?.commission_cents || 0),
@@ -271,6 +328,28 @@ driveSetsRouter.post('/answer', async (req, res) => {
       ? item.payload.merge_products
       : [{ ...item.payload, title: item.payload?.product_title || item.payload?.title || 'Product', image_url: item.payload?.image_url }];
     if (componentIndex >= products.length) return { status: 400, body: { error: 'bundle position out of range' } };
+    if (products.length > 1) {
+      const { rows: accounts } = await client.query('SELECT balance, frozen FROM accounts WHERE user_id = $1 FOR UPDATE', [req.user.id]);
+      const account = accounts[0] || { balance: 0, frozen: 0 };
+      const availableCents = Math.max(0, Math.round((Number(account.balance || 0) - Number(account.frozen || 0)) * 100));
+      const requiredCents = bundleExpectedPayoutCents(set, item, products.length);
+      if (availableCents < requiredCents) {
+        await client.query(
+          `UPDATE drive_sets SET balance_blocked_at = COALESCE(balance_blocked_at, NOW()),
+             balance_blocked_item_id = $2, balance_required_cents = $3, balance_available_cents = $4 WHERE id = $1`,
+          [set.id, item.id, requiredCents, availableCents],
+        );
+        return { status: 402, body: {
+          error: 'wallet balance is insufficient to continue with this bundle',
+          balance_gate: { blocked: true, item_id: Number(item.id), required_cents: requiredCents,
+            available_cents: availableCents, deficit_cents: requiredCents - availableCents },
+        } };
+      }
+      await client.query(
+        `UPDATE drive_sets SET balance_blocked_at = NULL, balance_blocked_item_id = NULL,
+           balance_required_cents = NULL, balance_available_cents = NULL WHERE id = $1`, [set.id],
+      );
+    }
     const product = products[componentIndex];
     const sourcePayload = { ...item.payload, ...product };
     const options = buildOptions(sourcePayload, `${set.id}:${item.image_index}:${componentIndex}`);

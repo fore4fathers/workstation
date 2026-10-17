@@ -16,7 +16,7 @@ tasksRouter.get('/', async (req, res) => {
     typeSql = ` AND t.type = $${params.length}`;
   }
   const { rows } = await query(
-    `SELECT t.id, t.type, t.title, t.description, t.pay_cents, t.single_pay_cents, t.engagement_type, t.est_minutes, t.created_at,
+    `SELECT t.id, t.type, t.title, t.description, t.translations, t.pay_cents, t.single_pay_cents, t.engagement_type, t.est_minutes, t.created_at,
             a.id AS assignment_id, a.status AS assignment_status, a.submitted_at, a.payout_status, a.payout_amount,
             COALESCE((SELECT SUM(ai.bonus_cents)::int FROM assignment_items ai WHERE ai.assignment_id = a.id), 0) AS bonus_cents,
             CASE WHEN a.id IS NULL
@@ -42,7 +42,7 @@ tasksRouter.get('/', async (req, res) => {
 
 tasksRouter.get('/:id', async (req, res) => {
   const { rows } = await query(
-    `SELECT id, type, title, description, pay_cents, single_pay_cents, engagement_type, est_minutes, is_published
+    `SELECT id, type, title, description, translations, pay_cents, single_pay_cents, engagement_type, est_minutes, is_published
      FROM tasks WHERE id = $1`,
     [req.params.id],
   );

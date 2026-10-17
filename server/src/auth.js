@@ -28,6 +28,8 @@ export function publicUser(row) {
     email: row.email,
     display_name: row.display_name,
     role: row.role,
+    is_active: row.is_active !== false,
+    is_verified: row.is_verified !== false,
     avatar_url: row.avatar_url,
     lifetime_completed: row.lifetime_completed || 0,
     tier: row.tier || 1,

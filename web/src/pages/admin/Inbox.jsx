@@ -13,6 +13,7 @@ export default function AdminInbox() {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [supportContact, setSupportContact] = useState('https://t.me/aiworkstation_support');
+  const [supportMode, setSupportMode] = useState('live_chat');
   const [supportBusy, setSupportBusy] = useState(false);
   const [supportError, setSupportError] = useState('');
   const logRef = useRef(null);
@@ -35,7 +36,7 @@ export default function AdminInbox() {
 
   useEffect(() => {
     api('/api/admin/support-contact')
-      .then((data) => setSupportContact(data.contact || ''))
+      .then((data) => { setSupportContact(data.contact || ''); setSupportMode(data.mode || 'live_chat'); })
       .catch((err) => setSupportError(err.message));
     let socket;
     loadList()
@@ -68,9 +69,10 @@ export default function AdminInbox() {
     try {
       const data = await api('/api/admin/support-contact', {
         method: 'PUT',
-        body: { contact: supportContact },
+        body: { contact: supportContact, mode: supportMode },
       });
       setSupportContact(data.contact);
+      setSupportMode(data.mode || 'live_chat');
     } catch (err) {
       setSupportError(err.message);
     } finally {
@@ -103,8 +105,13 @@ export default function AdminInbox() {
     <>
       {error ? <p className="error">{error}</p> : null}
       <form className="card" onSubmit={saveSupportContact} style={{ marginBottom: 18 }}>
-        <h2><LocalizedText source={"Telegram customer support"} /></h2>
-        <p className="meta"><LocalizedText source={"Set the Telegram contact shown to workers."} /></p>
+        <h2><LocalizedText source={"Customer support options"} /></h2>
+        <p className="meta"><LocalizedText source={"Choose the preferred support option and set the Telegram contact shown to clients."} /></p>
+        <label htmlFor="support-mode"><LocalizedText source={"Preferred support option"} /></label>
+        <select id="support-mode" value={supportMode} onChange={(e) => setSupportMode(e.target.value)}>
+          <option value="live_chat">{trText("Live chat")}</option>
+          <option value="telegram">Telegram</option>
+        </select>
         <label htmlFor="telegram-support-contact"><LocalizedText source={"Telegram username or link"} /></label>
         <div className="row">
           <input

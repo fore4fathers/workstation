@@ -61,6 +61,12 @@ export default function WithdrawalNotifications({ session }) {
         messageKey = session.user.role === 'admin'
           ? 'notifications.withdrawalApprovedAdmin'
           : 'notifications.withdrawalApprovedWorker';
+      } else if (type === 'deposit_requested' && session.user.role === 'admin') {
+        messageKey = 'notifications.depositRequested';
+      } else if (type === 'deposit_submitted' && session.user.role === 'worker') {
+        messageKey = 'notifications.depositSubmitted';
+      } else if (type === 'deposit_approved' || type === 'deposit_rejected') {
+        messageKey = `notifications.${type}${session.user.role === 'admin' ? 'Admin' : 'Worker'}`;
       } else {
         return;
       }
@@ -77,7 +83,11 @@ export default function WithdrawalNotifications({ session }) {
     }
 
     socket.on('withdrawal:notification', onNotification);
-    return () => socket.off('withdrawal:notification', onNotification);
+    socket.on('deposit:notification', onNotification);
+    return () => {
+      socket.off('withdrawal:notification', onNotification);
+      socket.off('deposit:notification', onNotification);
+    };
   }, [session.user.role, t]);
 
   if (!notices.length) return null;

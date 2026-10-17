@@ -44,6 +44,18 @@ export function LocalizedText({ source }) {
   return t(source, source);
 }
 
+export function localizedContent(source, translations, language, field = null) {
+  if (typeof source !== 'string' || language === 'en') return source;
+  const translated = field ? translations?.[language]?.[field] : translations?.[language];
+  return typeof translated === 'string' && translated.trim() ? translated : source;
+}
+
+export function localizedContentList(sources, translations, language, field) {
+  if (!Array.isArray(sources)) return [];
+  const translated = translations?.[language]?.[field];
+  return sources.map((source, index) => localizedContent(source, { [language]: translated?.[index] }, language));
+}
+
 export function LanguageToggle({ className = '' }) {
   const { language, setLanguage, t } = useLanguage();
   const next = language === 'en' ? 'ar' : 'en';

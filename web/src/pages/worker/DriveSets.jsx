@@ -1,17 +1,19 @@
 import { LocalizedText } from '../../i18n.jsx';
 import { useLanguage } from '../../i18n.jsx';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
 import { money, when } from '../../format.js';
 
 export default function WorkerDriveSets() {
-  const { t: trText } = useLanguage();
+  const { t: trText, language } = useLanguage();
   const [sets, setSets] = useState([]);
   const [activeSet, setActiveSet] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [bundleIndex, setBundleIndex] = useState(0);
   const [showBundleNotice, setShowBundleNotice] = useState(false);
   const [selectedOption, setSelectedOption] = useState(null);
+  const [expandedOptionIndex, setExpandedOptionIndex] = useState(null);
   const [foreignMode, setForeignMode] = useState(false);
   const [foreignResponse, setForeignResponse] = useState('');
   const [error, setError] = useState('');
@@ -43,7 +45,7 @@ export default function WorkerDriveSets() {
   useEffect(() => {
     if (!activeSet?.id || activeSet.status !== 'active') return undefined;
     const setId = activeSet.id;
-    const timer = window.setInterval(async () => {
+    const refresh = async () => {
       try {
         const latest = await api(`/api/worker/drive-sets/${setId}/items`);
         if (activeSetRef.current?.id !== setId) return;
@@ -55,15 +57,27 @@ export default function WorkerDriveSets() {
       } catch {
         // Keep the loaded item available while the progress refresh retries.
       }
-    }, 5000);
-    return () => window.clearInterval(timer);
+    };
+    const timer = window.setInterval(refresh, 3000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, [activeSet?.id, activeSet?.status]);
 
-  useEffect(() => {
-    if (!activeSet?.id || !activeSet.items?.some((entry) => entry.is_bundle)) return;
-    const noticeKey = `drive_bundle_notice_${activeSet.id}`;
-    if (localStorage.getItem(noticeKey) !== 'seen') setShowBundleNotice(true);
-  }, [activeSet?.id, activeSet?.items]);
+  useLayoutEffect(() => {
+    if (!activeSet?.id) { setShowBundleNotice(false); return; }
+    const currentItem = activeSet.items?.[currentIndex];
+    if (!currentItem?.is_bundle) { setShowBundleNotice(false); return; }
+    const noticeKey = `drive_bundle_notice_${activeSet.id}_${currentItem.drive_set_item_id}`;
+    setShowBundleNotice(localStorage.getItem(noticeKey) !== 'seen');
+  }, [activeSet?.id, activeSet?.items, currentIndex]);
 
   async function startSet(setId) {
     setError('');
@@ -84,12 +98,11 @@ export default function WorkerDriveSets() {
       setBundleIndex(Math.max(0, pendingComponent));
       setImageLoading(true);
       setSelectedOption(null);
+      setExpandedOptionIndex(null);
       setForeignMode(false);
       setForeignResponse('');
       setComplete(data.drive_set.status === 'completed');
-      const hasBundle = items.some((entry) => entry.is_bundle);
-      const noticeKey = `drive_bundle_notice_${setId}`;
-      setShowBundleNotice(hasBundle && localStorage.getItem(noticeKey) !== 'seen');
+      setShowBundleNotice(false);
     } catch (e) {
       setError(e.message);
     }
@@ -143,19 +156,39 @@ export default function WorkerDriveSets() {
       if ((component.component_index ?? bundleIndex) < componentCount - 1) {
         setBundleIndex((index) => index + 1);
         setSelectedOption(null);
+        setExpandedOptionIndex(null);
         setForeignMode(false);
         setForeignResponse('');
       } else if (submittedIndex < activeSet.items.length - 1) {
         setCurrentIndex(submittedIndex + 1);
         setBundleIndex(0);
         setSelectedOption(null);
+        setExpandedOptionIndex(null);
         setForeignMode(false);
         setForeignResponse('');
       } else {
         setImageLoading(false);
       }
+      api(`/api/worker/drive-sets/${activeSet.id}/items`).then((latest) => {
+        setActiveSet((prev) => prev?.id === activeSet.id
+          ? { ...prev, ...latest.drive_set, items: latest.items || prev.items }
+          : prev);
+      }).catch((e) => setError(e.message));
       load().catch((e) => setError(e.message));
     } catch (e) {
+      if (e.status === 402) {
+        try {
+          const latest = await api(`/api/worker/drive-sets/${activeSet.id}/items`);
+          setActiveSet((prev) => prev?.id === activeSet.id
+            ? { ...prev, ...latest.drive_set, items: latest.items || prev.items }
+            : prev);
+          setError('');
+        } catch (refreshError) {
+          setError(refreshError.message);
+        }
+        setImageLoading(false);
+        return;
+      }
       setImageLoading(false);
       setError(e.message);
     } finally {
@@ -169,6 +202,7 @@ export default function WorkerDriveSets() {
       setImageLoading(true);
       setBundleIndex((index) => index + 1);
       setSelectedOption(null);
+      setExpandedOptionIndex(null);
       setForeignMode(false);
       setForeignResponse('');
       return;
@@ -178,6 +212,7 @@ export default function WorkerDriveSets() {
       setCurrentIndex((index) => index + 1);
       setBundleIndex(0);
       setSelectedOption(null);
+      setExpandedOptionIndex(null);
       setForeignMode(false);
       setForeignResponse('');
       return;
@@ -200,14 +235,17 @@ export default function WorkerDriveSets() {
     const hasAnswer = selectedLabel != null;
     const earned = Number(activeSet.total_commission || 0) / 100;
     const productSteps = item.components || [];
-    const isBundleSet = activeSet.items.some((entry) => entry.is_bundle);
-    const bundleShowcaseItem = activeSet.items.find((entry) => entry.is_bundle);
+    const bundleShowcaseItem = item.is_bundle ? item : null;
     const bundleShowcase = bundleShowcaseItem?.merge_products || [];
+    const balanceGate = activeSet.balance_gate;
+    const balanceGateItem = activeSet.items.find((entry) => entry.drive_set_item_id === balanceGate?.item_id) || item;
+    const balanceGateProducts = balanceGateItem?.merge_products?.length > 1
+      ? balanceGateItem.merge_products : (balanceGateItem?.components || []).map((part) => ({ image_url: part.image_url, title: part.title }));
     return (
       <div className="card drive-trainer">
         <div className="section-h drive-trainer-header">
           <h2>{activeSet.title}</h2>
-          {isBundleSet ? <span className="bundle-set-badge">Bundle Set</span> : null}
+          {item.is_bundle ? <span className="bundle-set-badge">Bundle Set</span> : null}
           <div className="drive-trainer-summary">
             <span><LocalizedText source={"Image"} />{' '}<b>{currentIndex + 1}{' '}<LocalizedText source={"of"} />{' '}{activeSet.items.length}</b></span>
             {item.is_bundle ? <span>Bundle product <b>{bundleIndex + 1} of {productSteps.length}</b></span> : null}
@@ -215,6 +253,7 @@ export default function WorkerDriveSets() {
             <span><LocalizedText source={"Closest match"} />{' '}<b>{money(Number(activeSet.commission_cents ?? 50) / 100)}</b></span>
             <span><LocalizedText source={"Alternative"} />{' '}<b>{money(Number(activeSet.alternative_commission_cents ?? 25) / 100)}</b></span>
             <span><LocalizedText source={"Other language"} />{' '}<b>{money(Number(activeSet.foreign_commission_cents ?? activeSet.commission_cents ?? 50) / 100)}</b></span>
+            {item.is_bundle && Number(item.bonus_cents) > 0 ? <span className="bundle-reward-indicator"><LocalizedText source={"Bundle bonus"} /> <b>+{money(Number(item.bonus_cents) / 100)}</b></span> : null}
             <span><LocalizedText source={"Earned"} />{' '}<b>{money(earned)}</b></span>
           </div>
         </div>
@@ -235,7 +274,7 @@ export default function WorkerDriveSets() {
           <button type="button" className={foreignMode ? 'ghost' : 'primary'} disabled={busy || imageLoading || hasAnswer || complete}
             onClick={() => { setForeignMode(false); setForeignResponse(''); }}><LocalizedText source={"Choose a caption"} /></button>
           <button type="button" className={foreignMode ? 'primary' : 'ghost'} disabled={busy || imageLoading || hasAnswer || complete}
-            onClick={() => { setForeignMode(true); setSelectedOption(null); }}><LocalizedText source={"Respond in another language"} /></button>
+            onClick={() => { setForeignMode(true); setSelectedOption(null); setExpandedOptionIndex(null); }}><LocalizedText source={"Respond in another language"} /></button>
         </div>
         {hasAnswer && component.response_type === 'foreign_language' ? (
           <div className="drive-submitted-answer">{component.selected_label}</div>
@@ -247,9 +286,14 @@ export default function WorkerDriveSets() {
           <div className="drive-trainer-options">
             {(component?.options || item.options).map((option, index) => (
               <button key={option} type="button" title={option}
-                className={`drive-caption-option ${((hasAnswer && index === selectedOptionIndex) || (!hasAnswer && selectedOption === index)) ? 'selected' : ''}`}
-                onClick={() => setSelectedOption(index)} disabled={busy || imageLoading || hasAnswer || complete}>
-                {activeSet.civitai_backed && option.length > 180 ? `${option.slice(0, 177)}…` : option}
+                className={`drive-caption-option ${((hasAnswer && index === selectedOptionIndex) || (!hasAnswer && selectedOption === index)) ? 'selected' : ''}${expandedOptionIndex === index || (hasAnswer && index === selectedOptionIndex) ? ' expanded' : ''}`}
+                aria-expanded={expandedOptionIndex === index || (hasAnswer && index === selectedOptionIndex)}
+                onClick={() => { if (hasAnswer) { setExpandedOptionIndex(index); return; } setSelectedOption(index); setExpandedOptionIndex(index); }} disabled={busy || imageLoading || complete}>
+                {(() => {
+                  const displayOption = language === 'ar' ? (component.option_translations?.[index] || option) : option;
+                  return activeSet.civitai_backed && displayOption.length > 180 && expandedOptionIndex !== index && !(hasAnswer && index === selectedOptionIndex)
+                    ? `${displayOption.slice(0, 177)}…` : displayOption;
+                })()}
               </button>
             ))}
           </div>
@@ -270,6 +314,7 @@ export default function WorkerDriveSets() {
               setBundleIndex(lastComponent);
             }
             setSelectedOption(null);
+            setExpandedOptionIndex(null);
             setForeignMode(false);
             setForeignResponse('');
           }}><LocalizedText source={"Back"} /></button> : null}
@@ -296,13 +341,28 @@ export default function WorkerDriveSets() {
               {bundleShowcase.slice(0, 2).map((product, index) => <img key={`${product.image_url}-${index}`} src={product.image_url} alt={product.title || `Bundle product ${index + 1}`} />)}
             </div>
             <span className="bundle-set-badge">Bundle Set opportunity</span>
-            <h2 id="bundle-notice-title">Earn more from bundled products</h2>
-            <p>Each bundle counts as one item in your set. Label both products as they appear to receive the extra bundle reward.</p>
-            {bundleShowcaseItem?.bonus_cents ? <p className="bundle-notice-reward">Extra bundle reward: <b>{money(bundleShowcaseItem.bonus_cents / 100)}</b></p> : null}
+            <h2 id="bundle-notice-title"><LocalizedText source={"Earn more from bundled products"} /></h2>
+            <p><LocalizedText source={"Each bundle counts as one item in your set. Label both products as they appear to receive the extra bundle reward."} /></p>
+            {bundleShowcaseItem?.bonus_cents ? <p className="bundle-notice-reward"><LocalizedText source={"Extra bundle reward:"} /> <b>{money(bundleShowcaseItem.bonus_cents / 100)}</b></p> : null}
             <button className="primary" type="button" onClick={() => {
-              localStorage.setItem(`drive_bundle_notice_${activeSet.id}`, 'seen');
+              localStorage.setItem(`drive_bundle_notice_${activeSet.id}_${item.drive_set_item_id}`, 'seen');
               setShowBundleNotice(false);
-            }}>Continue</button>
+            }}><LocalizedText source={"Continue"} /></button>
+          </section>
+        </div> : null}
+        {balanceGate?.blocked ? <div className="balance-gate-backdrop" role="presentation">
+          <section className="balance-gate-dialog" role="dialog" aria-modal="true" aria-labelledby="balance-gate-title">
+            <div className="balance-gate-art">
+              {balanceGateProducts.slice(0, 2).map((product, index) => <img key={`${product.image_url}-${index}`} src={product.image_url} alt={product.title || `Bundle product ${index + 1}`} />)}
+            </div>
+            <span className="bundle-set-badge"><LocalizedText source={"Higher earning opportunity"} /></span>
+            <h2 id="balance-gate-title"><LocalizedText source={"Your wallet balance is not sufficient"} /></h2>
+            <p><LocalizedText source={"This bundle’s expected payout is"} /> <b>{money(Number(balanceGate.required_cents || 0) / 100)}</b>. <LocalizedText source={"Your available wallet balance is"} /> <b>{money(Number(balanceGate.available_cents || 0) / 100)}</b>.</p>
+            <p><LocalizedText source={"Add funds to your wallet or contact support to continue with this bundle."} /></p>
+            <div className="balance-gate-actions">
+              <Link className="primary" to="/wallet/deposit"><LocalizedText source={"Cash in"} /></Link>
+              <Link className="ghost" to="/chat"><LocalizedText source={"Contact support"} /></Link>
+            </div>
           </section>
         </div> : null}
       </div>

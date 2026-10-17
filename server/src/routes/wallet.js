@@ -92,6 +92,10 @@ walletRouter.post('/deposit', async (req, res) => {
      VALUES ($1, $2, 'PENDING', $3, $4, $5, $6) RETURNING *`,
     [req.user.id, amount, method, tx_ref, notes, Object.keys(details).length ? details : null],
   );
+  const notification = { type: 'deposit_submitted', amount: Number(rows[0].amount), user_name: req.user.display_name };
+  const io = req.app.get('io');
+  io?.to('admin').emit('deposit:notification', { ...notification, type: 'deposit_requested' });
+  io?.to(`user:${req.user.id}`).emit('deposit:notification', notification);
   res.status(201).json({ deposit: { ...rows[0], amount: Number(rows[0].amount) } });
 });
 

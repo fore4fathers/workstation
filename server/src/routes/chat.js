@@ -8,9 +8,10 @@ chatRouter.use(requireAuth);
 chatRouter.get('/support-contact', async (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'forbidden' });
   const { rows } = await query(
-    `SELECT value FROM app_settings WHERE key = 'telegram_support_contact'`,
+    `SELECT key, value FROM app_settings WHERE key IN ('telegram_support_contact', 'support_contact_mode')`,
   );
-  res.json({ contact: rows[0]?.value || 'https://t.me/aiworkstation_support' });
+  const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  res.json({ contact: settings.telegram_support_contact || 'https://t.me/aiworkstation_support', mode: settings.support_contact_mode === 'telegram' ? 'telegram' : 'live_chat' });
 });
 
 async function getOrCreateConversation(workerId) {

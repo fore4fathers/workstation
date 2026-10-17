@@ -11,12 +11,18 @@ export async function requireAuth(req, res, next) {
     const payload = verifyToken(token);
     req.auth = payload;
     const { rows } = await query(
-      `SELECT id, email, display_name, role, avatar_url, is_active, lifetime_completed, tier, phone, created_at, password_hash
+      `SELECT id, email, display_name, role, avatar_url, is_active, is_verified, lifetime_completed, tier, phone, created_at, password_hash
        FROM users WHERE id = $1`,
       [payload.id],
     );
-    if (!rows[0] || !rows[0].is_active) return res.status(401).json({ error: 'unauthorized' });
+    if (!rows[0]) return res.status(401).json({ error: 'unauthorized' });
     req.user = rows[0];
+    const inactiveWorker = req.user.role === 'worker' && (!req.user.is_active || !req.user.is_verified);
+    const accountCheck = req.baseUrl === '/api/me' && req.method === 'GET' && req.path === '/';
+    const supportContact = req.baseUrl === '/api/chat' && req.method === 'GET' && req.path === '/support-contact';
+    if (inactiveWorker && !payload.impersonated_by && !accountCheck && !supportContact) {
+      return res.status(403).json({ error: 'account awaiting verification', requiresVerification: true });
+    }
     next();
   } catch {
     return res.status(401).json({ error: 'unauthorized' });

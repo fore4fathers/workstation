@@ -2,7 +2,6 @@ import { LocalizedText } from '../i18n.jsx';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, setToken } from '../api.js';
-import { connectSocket } from '../socket.js';
 import { Spinner } from '../ui.jsx';
 import AuthLayout from '../layouts/AuthLayout.jsx';
 import { useLanguage } from '../i18n.jsx';
@@ -33,15 +32,10 @@ export default function SignIn({ onLogin }) {
       if (remember) localStorage.setItem('aw_email', mail);
       else localStorage.removeItem('aw_email');
       setToken(data.token);
-      connectSocket();
       const me = await api('/api/me');
       onLogin(me);
       navigate('/');
     } catch (err) {
-      if (err.status === 403 && err.data?.requiresVerification) {
-        navigate(`/register?verify=1&email=${encodeURIComponent(err.data.email || '')}`);
-        return;
-      }
       setError(err.message);
     } finally {
       setBusy(false);

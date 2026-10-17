@@ -1,4 +1,4 @@
-import { LocalizedText } from '../../i18n.jsx';
+import { LocalizedText, localizedContent } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
@@ -18,7 +18,7 @@ const STATUS = {
 };
 
 export default function WorkerHome({ session }) {
-  const { t: trText } = useLanguage();
+  const { t: trText, language } = useLanguage();
   const [hub, setHub] = useState(null);
   const [error, setError] = useState('');
   const [gate, setGate] = useState('');
@@ -129,7 +129,7 @@ export default function WorkerHome({ session }) {
               <tbody>
                 {(hub?.activity || []).map((r) => (
                   <tr key={r.id}>
-                    <td>{r.title}</td>
+                    <td>{localizedContent(r.title, r.translations, language, 'title')}</td>
                     <td className="meta">T-{r.id}</td>
                     <td className="meta">{when(r.submitted_at)}</td>
                     <td className="money">{money(r.pay_dollars)}</td>

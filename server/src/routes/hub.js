@@ -10,7 +10,7 @@ hubRouter.use(requireAuth);
 hubRouter.get('/', async (req, res) => {
   const { rows: typeRows } = await query(
     `SELECT DISTINCT ON (t.type)
-            t.id, t.type, t.title, t.description, t.pay_cents, t.est_minutes,
+            t.id, t.type, t.title, t.description, t.translations, t.pay_cents, t.est_minutes,
             a.status AS assignment_status
      FROM tasks t
      LEFT JOIN assignments a ON a.task_id = t.id AND a.worker_id = $1
@@ -20,7 +20,7 @@ hubRouter.get('/', async (req, res) => {
     [req.user.id],
   );
   const { rows: activity } = await query(
-    `SELECT a.id, a.submitted_at, a.payout_status, t.title, t.type, t.pay_cents
+    `SELECT a.id, a.submitted_at, a.payout_status, t.title, t.translations, t.type, t.pay_cents
      FROM assignments a
      JOIN tasks t ON t.id = a.task_id
      WHERE a.worker_id = $1 AND a.status = 'submitted'

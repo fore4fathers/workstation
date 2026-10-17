@@ -1,7 +1,6 @@
 import { LocalizedText } from '../../i18n.jsx';
 import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
 import { money } from '../../format.js';
 
@@ -89,7 +88,6 @@ export default function AdminDriveSets() {
         <h2><LocalizedText source={"Label Sets"} /></h2>
         <div className="label-sets-heading-actions">
           <p className="meta"><LocalizedText source={"Assign image sets using imported Civitai images and their stored prompts."} /></p>
-          <Link className="primary small" to="/tasks">Product tasks</Link>
         </div>
       </div>
       {error ? <p className="error">{error}</p> : null}
@@ -106,9 +104,9 @@ export default function AdminDriveSets() {
             </select>
           </div>
           <div>
-            <label><LocalizedText source={"Task (Image Type)"} /></label>
+            <label><LocalizedText source={"Image source"} /></label>
             <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)}>
-              <option value=""><LocalizedText source={"Select task..."} /></option>
+              <option value=""><LocalizedText source={"Select image source..."} /></option>
               {(tasks || []).filter((t) => t.type === 'image').map((t) => (
                 <option key={t.id} value={t.id}>{t.title}</option>
               ))}

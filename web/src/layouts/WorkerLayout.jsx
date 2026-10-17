@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { logout, returnToAdmin } from '../session.js';
 import { LanguageToggle, useLanguage } from '../i18n.jsx';
 import WithdrawalNotifications from '../WithdrawalNotifications.jsx';
+import SupportWidget from '../SupportWidget.jsx';
 
 const links = [
   { to: '/', label: 'Dashboard', key: 'nav.dashboard', end: true, icon: 'home' },
@@ -37,6 +38,7 @@ export default function WorkerLayout({ session }) {
   return (
     <div className="tm-shell">
       <WithdrawalNotifications session={session} />
+      <SupportWidget session={session} />
       <button type="button" className="tm-burger" aria-label={trText("Menu")} onClick={() => setOpen((v) => !v)}>
         <span /><span /><span />
       </button>

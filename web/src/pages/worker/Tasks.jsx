@@ -1,4 +1,4 @@
-import { LocalizedText } from '../../i18n.jsx';
+import { LocalizedText, localizedContent } from '../../i18n.jsx';
 import { useLanguage } from '../../i18n.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { IconBack } from '../../icons.jsx';
 import { Spinner } from '../../ui.jsx';
 
 export default function WorkerTasks({ session }) {
-  const { t: trText } = useLanguage();
+  const { t: trText, language } = useLanguage();
   const [tasks, setTasks] = useState(null);
   const [panel, setPanel] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -140,7 +140,7 @@ export default function WorkerTasks({ session }) {
                     <img src={`https://picsum.photos/seed/awc${t.id}/320/180`} alt="" />
                   </div>
                   <p className="meta"><LocalizedText source={"Order"} />{' '}{t.assignment_id || t.id}</p>
-                  <h3>{t.title}</h3>
+                  <h3>{localizedContent(t.title, t.translations, language, 'title')}</h3>
                   <p className="meta">{when(t.submitted_at || t.created_at)} · {typeIcon(t.type)} {trText(t.type, t.type)}</p>
                   <div className="pkg-nums">
                     <div><span className="meta"><LocalizedText source={"Total return"} /></span><b>{money(t.pay_dollars)}</b></div>
@@ -179,8 +179,8 @@ export default function WorkerTasks({ session }) {
           <Link key={t.id} className="task-card" to={`/tasks/${t.id}`}>
             <div className={`task-icon ${t.type}`}>{typeIcon(t.type)}</div>
             <div className="grow">
-              <h3>{t.title}</h3>
-            <div className="meta">{t.engagement_type === 'merge' ? 'Merge engagement · products reviewed together' : (t.description || `${t.item_count} items`)}</div>
+              <h3>{localizedContent(t.title, t.translations, language, 'title')}</h3>
+            <div className="meta">{t.engagement_type === 'merge' ? 'Merge engagement · products reviewed together' : (localizedContent(t.description, t.translations, language, 'description') || `${t.item_count} items`)}</div>
             </div>
             <div className="task-pay">{t.engagement_type === 'merge' ? <span className="pill">Merge</span> : null}<b>{money(t.pay_dollars)}</b></div>
           </Link>

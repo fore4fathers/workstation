@@ -26,6 +26,7 @@ One-process demo (builds the SPA, API serves it):
 | `admin@demo.local` | `admin123` | admin |
 
 Workers can also register from the login screen. Passwords are demo-only.
+The seed command resets the users and dependent data before recreating these demo accounts; do not run it against a database with data you need to keep.
 
 ## Money model
 

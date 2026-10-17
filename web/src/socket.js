@@ -16,6 +16,7 @@ export function connectSocket() {
   socket = io({
     auth: { token },
     transports: ['websocket', 'polling'],
+    tryAllTransports: true,
   });
   return socket;
 }

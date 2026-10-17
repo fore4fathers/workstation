@@ -18,6 +18,7 @@ export async function migrate() {
     )
   `);
   await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS single_pay_cents INTEGER`);
+  await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS engagement_type TEXT NOT NULL DEFAULT 'single'`);
   await query(`ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_engagement_type_check`);
   await query(`ALTER TABLE tasks ADD CONSTRAINT tasks_engagement_type_check CHECK (engagement_type IN ('single','merge'))`);
@@ -65,7 +66,7 @@ export async function migrate() {
   `);
   await query(`
     INSERT INTO app_settings (key, value)
-    VALUES ('telegram_support_contact', 'https://t.me/aiworkstation_support')
+    VALUES ('telegram_support_contact', 'https://t.me/aiworkstation_support'), ('support_contact_mode', 'live_chat')
     ON CONFLICT (key) DO NOTHING
   `);
 
@@ -104,6 +105,7 @@ export async function migrate() {
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT TRUE`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_code TEXT`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires TIMESTAMPTZ`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT TRUE`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tier INTEGER NOT NULL DEFAULT 2`);
   await query(`ALTER TABLE users ALTER COLUMN tier SET DEFAULT 2`);
   await query(`CREATE TABLE IF NOT EXISTS schema_flags (key TEXT PRIMARY KEY)`);
@@ -174,6 +176,10 @@ export async function migrate() {
   await query(`ALTER TABLE drive_sets ADD COLUMN IF NOT EXISTS commission_cents INTEGER NOT NULL DEFAULT 50`);
   await query(`ALTER TABLE drive_sets ADD COLUMN IF NOT EXISTS alternative_commission_cents INTEGER NOT NULL DEFAULT 25`);
   await query(`ALTER TABLE drive_sets ADD COLUMN IF NOT EXISTS foreign_commission_cents INTEGER NOT NULL DEFAULT 50`);
+  await query(`ALTER TABLE drive_sets ADD COLUMN IF NOT EXISTS balance_blocked_at TIMESTAMPTZ`);
+  await query(`ALTER TABLE drive_sets ADD COLUMN IF NOT EXISTS balance_blocked_item_id INTEGER`);
+  await query(`ALTER TABLE drive_sets ADD COLUMN IF NOT EXISTS balance_required_cents INTEGER`);
+  await query(`ALTER TABLE drive_sets ADD COLUMN IF NOT EXISTS balance_available_cents INTEGER`);
   await query(`
     CREATE TABLE IF NOT EXISTS drive_set_items (
       id SERIAL PRIMARY KEY,

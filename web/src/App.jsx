@@ -29,7 +29,30 @@ import AdminProfile from './pages/admin/Profile.jsx';
 import AdminWorkers from './pages/admin/Workers.jsx';
 import AdminWorkerDetail from './pages/admin/WorkerDetail.jsx';
 import AdminDriveSets from './pages/admin/DriveSets.jsx';
-import AdminTasks from './pages/admin/Tasks.jsx';
+
+function VerificationGate({ onSignOut }) {
+  const [supportContact, setSupportContact] = useState('https://t.me/aiworkstation_support');
+
+  useEffect(() => {
+    api('/api/chat/support-contact')
+      .then((data) => setSupportContact(data.contact || 'https://t.me/aiworkstation_support'))
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div className="verification-gate-backdrop">
+      <section className="verification-gate" role="alertdialog" aria-modal="true" aria-labelledby="verification-gate-title">
+        <div className="verification-gate-icon" aria-hidden="true">✓</div>
+        <h2 id="verification-gate-title"><LocalizedText source={"Your account is not active"} /></h2>
+        <p><LocalizedText source={"Contact support to activate your account before you start using the platform."} /></p>
+        <a className="primary verification-gate-contact" href={supportContact} target="_blank" rel="noreferrer">
+          <LocalizedText source={"Contact support"} />
+        </a>
+        <button type="button" className="text-btn" onClick={onSignOut}><LocalizedText source={"Sign out"} /></button>
+      </section>
+    </div>
+  );
+}
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -45,7 +68,8 @@ export default function App() {
     api('/api/me')
       .then((data) => {
         setSession(data);
-        connectSocket();
+        if (data.user?.is_active && data.user?.is_verified) connectSocket();
+        else disconnectSocket();
       })
       .catch(() => {
         setToken(null);
@@ -54,6 +78,19 @@ export default function App() {
       })
       .finally(() => setLoading(false));
   }, [loc.pathname]);
+
+  useEffect(() => {
+    const pending = session?.user?.role === 'worker'
+      && (!session.user.is_active || !session.user.is_verified);
+    if (!pending) return undefined;
+    const timer = setInterval(() => {
+      api('/api/me').then((data) => {
+        setSession(data);
+        if (data.user?.is_active && data.user?.is_verified) connectSocket();
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [session?.user?.role, session?.user?.is_active, session?.user?.is_verified]);
 
   if (loading) {
     return (
@@ -79,8 +116,16 @@ export default function App() {
   }
 
   const isAdmin = session.user.role === 'admin';
+  const needsVerification = !isAdmin && (!session.user.is_active || !session.user.is_verified);
+
+  function signOutFromGate() {
+    setToken(null);
+    disconnectSocket();
+    setSession(null);
+  }
 
   return (
+    <>
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/sign-in" element={<Navigate to="/" replace />} />
@@ -93,7 +138,6 @@ export default function App() {
           <Route path="wallet" element={<AdminWallet />} />
           <Route path="deposits" element={<AdminDeposits />} />
           <Route path="drive-sets" element={<AdminDriveSets />} />
-          <Route path="tasks" element={<AdminTasks />} />
           <Route path="inbox" element={<AdminInbox />} />
           <Route path="profile" element={<AdminProfile session={session} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -118,5 +162,7 @@ export default function App() {
         </Route>
       )}
     </Routes>
+    {needsVerification ? <VerificationGate onSignOut={signOutFromGate} /> : null}
+    </>
   );
 }

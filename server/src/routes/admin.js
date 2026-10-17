@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
+import bcrypt from 'bcrypt';
 import { query, withTransaction } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
@@ -45,13 +46,15 @@ adminRouter.get('/stats', async (_req, res) => {
 
 adminRouter.get('/support-contact', async (_req, res) => {
   const { rows } = await query(
-    `SELECT value FROM app_settings WHERE key = 'telegram_support_contact'`,
+    `SELECT key, value FROM app_settings WHERE key IN ('telegram_support_contact', 'support_contact_mode')`,
   );
-  res.json({ contact: rows[0]?.value || 'https://t.me/aiworkstation_support' });
+  const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  res.json({ contact: settings.telegram_support_contact || 'https://t.me/aiworkstation_support', mode: settings.support_contact_mode === 'telegram' ? 'telegram' : 'live_chat' });
 });
 
 adminRouter.put('/support-contact', async (req, res) => {
   const value = String(req.body?.contact || '').trim();
+  const mode = req.body?.mode === 'telegram' ? 'telegram' : 'live_chat';
   let contact;
   if (/^@?[A-Za-z0-9_]{5,32}$/.test(value)) {
     contact = `https://t.me/${value.replace(/^@/, '')}`;
@@ -74,7 +77,13 @@ adminRouter.put('/support-contact', async (req, res) => {
      RETURNING value`,
     [contact],
   );
-  res.json({ contact: rows[0].value });
+  await query(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES ('support_contact_mode', $1, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    [mode],
+  );
+  res.json({ contact: rows[0].value, mode });
 });
 
 adminRouter.get('/tasks', async (_req, res) => {
@@ -719,7 +728,7 @@ adminRouter.post('/payouts/:id/void', async (req, res) => {
 
 adminRouter.get('/workers', async (_req, res) => {
   const { rows } = await query(
-    `SELECT u.id, u.email, u.display_name, u.is_active, u.lifetime_completed, u.created_at, u.tier,
+    `SELECT u.id, u.email, u.display_name, u.is_active, u.is_verified, u.lifetime_completed, u.created_at, u.tier,
             u.deposit_address, u.deposit_cryptocurrency, u.deposit_network,
             ac.balance, ac.frozen, ac.pending,
             (SELECT COUNT(*)::int FROM assignments a
@@ -742,7 +751,7 @@ adminRouter.get('/workers', async (_req, res) => {
 
 adminRouter.get('/workers/:id', async (req, res) => {
   const { rows: userRows } = await query(
-    `SELECT id, email, display_name, phone, is_active, lifetime_completed, created_at, tier,
+    `SELECT id, email, display_name, phone, is_active, is_verified, lifetime_completed, created_at, tier,
             deposit_address, deposit_cryptocurrency, deposit_network
      FROM users WHERE id = $1 AND role = 'worker'`,
     [req.params.id],
@@ -784,6 +793,96 @@ adminRouter.post('/workers/:id/impersonate', async (req, res) => {
   res.json({ token, user: worker });
 });
 
+adminRouter.post('/workers/:id/balance', async (req, res) => {
+  const workerId = Number(req.params.id);
+  const rawBalance = String(req.body?.balance ?? '').trim();
+  const reason = String(req.body?.reason ?? '').trim();
+  if (!Number.isInteger(workerId) || workerId < 1) return res.status(400).json({ error: 'invalid worker id' });
+  if (!/^\d{1,10}(?:\.\d{1,2})?$/.test(rawBalance)) {
+    return res.status(400).json({ error: 'enter a balance with up to two decimal places' });
+  }
+  if (reason.length < 3 || reason.length > 500) {
+    return res.status(400).json({ error: 'enter an adjustment reason between 3 and 500 characters' });
+  }
+  const targetCents = Math.round(Number(rawBalance) * 100);
+  try {
+    const result = await withTransaction(async (client) => {
+      const { rows: workers } = await client.query(
+        `SELECT id FROM users WHERE id = $1 AND role = 'worker' FOR UPDATE`, [workerId],
+      );
+      if (!workers[0]) return { status: 404, body: { error: 'worker not found' } };
+      const { rows: accounts } = await client.query(
+        'SELECT balance, frozen, pending FROM accounts WHERE user_id = $1 FOR UPDATE', [workerId],
+      );
+      const account = accounts[0];
+      if (!account) return { status: 404, body: { error: 'worker account not found' } };
+      const currentCents = Math.round(Number(account.balance) * 100);
+      const frozenCents = Math.round(Number(account.frozen) * 100);
+      if (targetCents < frozenCents) {
+        return { status: 400, body: { error: 'balance cannot be lower than funds on hold' } };
+      }
+      const adjustmentCents = targetCents - currentCents;
+      if (adjustmentCents === 0) {
+        return { status: 400, body: { error: 'new balance must differ from the current balance' } };
+      }
+      await client.query('UPDATE accounts SET balance = $1 WHERE user_id = $2', [targetCents / 100, workerId]);
+      const { rows: ledgerRows } = await client.query(
+        `INSERT INTO ledger (user_id, kind, amount, ref_type, ref_id, note)
+         VALUES ($1, 'admin_adjust', $2, 'admin_balance_adjustment', $3, $4)
+         RETURNING id, kind, amount, ref_type, ref_id, note, created_at`,
+        [workerId, adjustmentCents / 100, workerId, `Admin #${req.user.id}: ${reason}`],
+      );
+      return {
+        status: 200,
+        body: {
+          account: { balance: targetCents / 100, frozen: Number(account.frozen), pending: Number(account.pending) },
+          adjustment: { ...ledgerRows[0], amount: Number(ledgerRows[0].amount) },
+        },
+      };
+    });
+    res.status(result.status).json(result.body);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+adminRouter.post('/workers/:id/password', async (req, res) => {
+  const password = String(req.body?.password || '');
+  if (password.length < 8) return res.status(400).json({ error: 'password must be at least 8 characters' });
+  const { rows: workers } = await query('SELECT id FROM users WHERE id = $1 AND role = \'worker\'', [req.params.id]);
+  if (!workers[0]) return res.status(404).json({ error: 'worker not found' });
+  const passwordHash = await bcrypt.hash(password, 10);
+  await query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, workers[0].id]);
+  res.json({ ok: true });
+});
+
+adminRouter.delete('/workers/:id', async (req, res) => {
+  try {
+    const deleted = await withTransaction(async (client) => {
+      const { rows: workers } = await client.query(
+        'SELECT id FROM users WHERE id = $1 AND role = \'worker\' FOR UPDATE',
+        [req.params.id],
+      );
+      if (!workers[0]) return false;
+      const workerId = workers[0].id;
+
+      // Keep worker-created tasks available to other workers while removing account-owned data.
+      await client.query('UPDATE tasks SET created_by = $1 WHERE created_by = $2', [req.user.id, workerId]);
+      await client.query('UPDATE drive_sets SET assigned_by = NULL WHERE assigned_by = $1', [workerId]);
+      await client.query('DELETE FROM messages WHERE sender_id = $1', [workerId]);
+      await client.query('DELETE FROM withdrawals WHERE user_id = $1', [workerId]);
+      await client.query('DELETE FROM ledger WHERE user_id = $1', [workerId]);
+      await client.query('DELETE FROM assignments WHERE worker_id = $1', [workerId]);
+      await client.query('DELETE FROM users WHERE id = $1', [workerId]);
+      return true;
+    });
+    if (!deleted) return res.status(404).json({ error: 'worker not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
 adminRouter.post('/workers/:id/deposit-address', async (req, res) => {
   const address = String(req.body?.address || '').trim();
   const cryptocurrency = String(req.body?.cryptocurrency || '').toUpperCase();
@@ -808,13 +907,13 @@ adminRouter.post('/workers/:id/deposit-address', async (req, res) => {
 });
 
 adminRouter.post('/workers/:id/active', async (req, res) => {
-  const is_active = Boolean(req.body?.is_active);
+  const is_active = req.body?.is_active === true;
   const { rows: u } = await query('SELECT id, role FROM users WHERE id = $1', [req.params.id]);
   if (!u[0]) return res.status(404).json({ error: 'not found' });
   if (u[0].role !== 'worker') return res.status(400).json({ error: 'workers only' });
   const { rows } = await query(
-    `UPDATE users SET is_active = $1 WHERE id = $2
-     RETURNING id, email, display_name, role, is_active`,
+    `UPDATE users SET is_active = $1, is_verified = $1 WHERE id = $2
+     RETURNING id, email, display_name, role, is_active, is_verified`,
     [is_active, u[0].id],
   );
   res.json({ user: rows[0] });
@@ -891,14 +990,22 @@ async function settleDeposit(id, action) {
         [d.id],
       );
     }
-    const { rows: done } = await client.query('SELECT * FROM deposits WHERE id = $1', [d.id]);
+    const { rows: done } = await client.query(
+      `SELECT d.*, u.display_name FROM deposits d JOIN users u ON u.id = d.user_id WHERE d.id = $1`,
+      [d.id],
+    );
     return { deposit: { ...done[0], amount: Number(done[0].amount) } };
   });
 }
 
 adminRouter.post('/deposits/:id/approve', async (req, res) => {
   try {
-    res.json(await settleDeposit(req.params.id, 'approve'));
+    const result = await settleDeposit(req.params.id, 'approve');
+    const notification = { type: 'deposit_approved', amount: result.deposit.amount, user_name: result.deposit.display_name };
+    const io = req.app.get('io');
+    io?.to('admin').emit('deposit:notification', notification);
+    io?.to(`user:${result.deposit.user_id}`).emit('deposit:notification', notification);
+    res.json(result);
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }
@@ -906,7 +1013,12 @@ adminRouter.post('/deposits/:id/approve', async (req, res) => {
 
 adminRouter.post('/deposits/:id/reject', async (req, res) => {
   try {
-    res.json(await settleDeposit(req.params.id, 'reject'));
+    const result = await settleDeposit(req.params.id, 'reject');
+    const notification = { type: 'deposit_rejected', amount: result.deposit.amount, user_name: result.deposit.display_name };
+    const io = req.app.get('io');
+    io?.to('admin').emit('deposit:notification', notification);
+    io?.to(`user:${result.deposit.user_id}`).emit('deposit:notification', notification);
+    res.json(result);
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }
@@ -979,6 +1091,10 @@ adminRouter.get('/drive-sets/active-progress', async (_req, res) => {
       total_pay_dollars: dollarsFromCents(bonusCents + Number(set.earned_cents || 0)),
       bonus_dollars: dollarsFromCents(bonusCents),
       earned_dollars: dollarsFromCents(set.earned_cents),
+      balance_blocked_at: set.balance_blocked_at,
+      balance_blocked_item_id: set.balance_blocked_item_id,
+      balance_required_cents: set.balance_required_cents,
+      balance_available_cents: set.balance_available_cents,
     };
   }) });
 });
@@ -1008,6 +1124,10 @@ adminRouter.get('/drive-sets/:id/progress', async (req, res) => {
       total_pay_dollars: dollarsFromCents(Number(set.earned_cents || 0) + bonusCents),
       earned_dollars: dollarsFromCents(set.earned_cents),
       alternative_rate_dollars: dollarsFromCents(set.alternative_commission_cents),
+      balance_blocked_at: set.balance_blocked_at,
+      balance_blocked_item_id: set.balance_blocked_item_id,
+      balance_required_cents: set.balance_required_cents,
+      balance_available_cents: set.balance_available_cents,
     },
     items: details.items,
   });
