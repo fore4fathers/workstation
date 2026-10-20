@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
 import { money, typeIcon, when } from '../../format.js';
 import { useLanguage } from '../../i18n.jsx';
+import marketReviews from '../../data/market-research-reviews.json';
 
 const TYPE_META = {
   intent: { label: 'Rate AI responses', blurb: 'Rate the quality and helpfulness of AI-generated responses.', color: 'blue', mins: 5 },
@@ -111,6 +112,31 @@ export default function WorkerHome({ session }) {
               );
             })}
           </div>
+
+          <section className="client-testimonials" aria-labelledby="client-testimonials-title">
+            <div className="client-testimonials-heading">
+              <div>
+                <p className="client-testimonials-eyebrow">Trusted by our community</p>
+                <h2 id="client-testimonials-title">Real users. Real results.</h2>
+              </div>
+              <span className="client-testimonials-rating">{marketReviews.length} customer reviews</span>
+            </div>
+            {[marketReviews, [...marketReviews].reverse()].map((reviews, row) => (
+              <div className="client-testimonial-marquee" key={row} aria-label={`Customer review marquee ${row + 1}`}>
+                <div className={`client-testimonial-track${row ? ' reverse' : ''}`}>
+                  {[...reviews, ...reviews].map((review, index) => (
+                    <article className="client-testimonial" key={`${row}-${review.id}-${index}`} aria-hidden={index >= reviews.length}>
+                      <div className="client-testimonial-stars" aria-label={`${review.rating} out of 5 stars`}>
+                        {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)} <span>{review.rating} / 5</span>
+                      </div>
+                      <blockquote>“{review.full}”</blockquote>
+                      <div className="client-testimonial-person"><b>{review.reviewer}</b><span>{review.date}</span></div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
 
           <div className="section-h">
             <h2><LocalizedText source={"Recent activity"} /></h2>

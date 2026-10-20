@@ -93,8 +93,15 @@ export default function WorkerLayout({ session }) {
         </header>
         <Outlet context={{ session }} />
         <footer className="tm-foot">
-          <span>{t('nav.copyright')}</span>
-          <span>{t('nav.terms')}</span>
+          <div className="tm-foot-brand">
+            <img src="/engagesphere-logo.png" alt="EngageSphere" />
+            <div><b>ENGAGESPHERE</b><span>Building smarter AI, together.</span></div>
+          </div>
+          <div className="tm-foot-links">
+            <div><b>Workspace</b><NavLink to="/">Dashboard</NavLink><NavLink to="/tasks">Available tasks</NavLink><NavLink to="/training">Skills center</NavLink></div>
+            <div><b>Account</b><NavLink to="/profile">Profile</NavLink><NavLink to="/wallet">Earnings</NavLink><NavLink to="/chat">Help center</NavLink></div>
+          </div>
+          <div className="tm-foot-bottom"><span>{t('nav.copyright')}</span><span>{t('nav.terms')}</span></div>
         </footer>
       </div>
     </div>

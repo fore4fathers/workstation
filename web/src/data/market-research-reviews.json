@@ -1,0 +1,137 @@
+[
+  {
+    "id": 1,
+  "reviewer": "Lena Novak",
+  "gender": "female",
+  "rating": 5,
+    "date": "2019-06-12",
+    "short": "As a small on...",
+    "full": "As a small online shop, I often felt like I was shouting into an empty room. Since joining the platform I now reach new buyers I never could on my own. The dashboard is straightforward and it’s easy to list items. I’m getting consistent enquiries I didn’t have before."
+  },
+  {
+    "id": 2,
+  "reviewer": "Carlos Méndez",
+  "gender": "male",
+  "rating": 5,
+    "date": "2020-09-03",
+    "short": "What helped me...",
+    "full": "What helped me most was being part of a site that already drives traffic. I was spending a lot of time trying to figure out how to attract visitors; now I can focus on fulfilling orders and improving my product range instead of figuring out “how do I find customers?”."
+  },
+  {
+    "id": 3,
+  "reviewer": "Maya Patel",
+  "gender": "female",
+  "rating": 4,
+    "date": "2018-11-21",
+    "short": "I used to run m...",
+    "full": "I used to run my own storefront and try Facebook/Instagram ads, but found it difficult to convert. Through the vendor link-site I’m now getting meaningful leads, and the cost (in time) per new sale has dropped noticeably. That’s freed me to invest in better packaging and customer service."
+  },
+  {
+    "id": 4,
+  "reviewer": "Omar Hassan",
+  "gender": "male",
+  "rating": 5,
+    "date": "2021-02-14",
+    "short": "It isn’t just th...",
+    "full": "It isn’t just the number of buyers, but the type: because the site connects me with buyers who are actually interested in my kind of products, my conversion rate is better. Before I had 500 visitors and maybe 2 sales; now I might have 200 visitors and 5 sales. That makes a big difference."
+  },
+  {
+    "id": 5,
+  "reviewer": "Priya Sharma",
+  "gender": "female",
+  "rating": 4,
+    "date": "2017-07-30",
+    "short": "Listing on this...",
+    "full": "Listing on this vendor site gave me a chance to test new products with less risk. I uploaded a few new designs, and within a week got feedback and a small batch of orders. Without that exposure I don’t think I’d have tried that line yet."
+  },
+  {
+    "id": 6,
+  "reviewer": "Ben Parker",
+  "gender": "male",
+  "rating": 5,
+    "date": "2016-03-08",
+    "short": "I’m not tech-sav...",
+    "full": "I’m not tech-savvy, so the fact that I could plug into a system where the marketing is partly handled for me was a relief. Previously I spent hours trying to set up SEO and ads; now I’m focused just on keeping stock, shipping and maintaining quality."
+  },
+  {
+    "id": 7,
+  "reviewer": "Zara Khan",
+  "gender": "female",
+  "rating": 4,
+    "date": "2022-01-19",
+    "short": "Logistics and f...",
+    "full": "Logistics and finding new customers were my biggest headache. The marketplace helped me with finding customers; it also gave me visibility I lacked. As my orders grew I sorted shipping locally, but the buyer leads came from the platform."
+  },
+  {
+    "id": 8,
+  "reviewer": "Ethan Miller",
+  "gender": "male",
+  "rating": 4,
+    "date": "2015-10-05",
+    "short": "What I like is ...",
+    "full": "What I like is that the vendor interface shows me what buyers are searching for, what sorts of items are most often viewed. That means I’m not guessing as much. I can tailor my stock and pricing in response to actual buyer demand rather than hoping for the best."
+  },
+  {
+    "id": 9,
+  "reviewer": "Nina Romero",
+  "gender": "female",
+  "rating": 5,
+    "date": "2023-08-25",
+    "short": "Before I joined...",
+    "full": "Before I joined, I had to rely on word-of-mouth and local traffic. This site opened me up to buyers beyond my immediate region, which has made my monthly revenue more stable. In months when local foot traffic is slow I still have online orders coming in."
+  },
+  {
+    "id": 10,
+  "reviewer": "Sam Reynolds",
+  "gender": "male",
+  "rating": 5,
+    "date": "2024-05-12",
+    "short": "One of the key ...",
+    "full": "One of the key benefits: I no longer feel isolated. As a vendor on my own I was always worried ‘where will my next customer come from’. Here I have a network and a marketplace audience—so I can plan ahead rather than just survive month to month."
+  },
+  {
+    "id": 11,
+  "reviewer": "Rosa García",
+  "gender": "female",
+  "rating": 4,
+    "date": "2020-12-02",
+    "short": "Over the last q...",
+    "full": "Over the last quarter I’ve seen a noticeable drop in my “cost per customer acquisition” in terms of time and marketing spend. Instead of me trying lots of little tactics, the platform gives a structured way for buyers to find me and trust my shop. That trust turned into new customers who buy and come back."
+  },
+  {
+    "id": 12,
+  "reviewer": "Ken Watson",
+  "gender": "male",
+  "rating": 4,
+    "date": "2019-01-16",
+    "short": "I had difficult...",
+    "full": "I had difficulties getting repeat/customers originally, because I didn’t have strong visibility. Through this marketplace I’ve started to see more repeat business — people who found me, liked the product, and came back. That improves my overall lifetime value and makes my inventory decisions easier."
+  },
+  {
+    "id": 13,
+  "reviewer": "Ava Collins",
+  "gender": "female",
+  "rating": 4,
+    "date": "2018-04-22",
+    "short": "Because the sit...",
+    "full": "Because the site aggregates many vendors, the buyer volume is higher. So even though I’m one of many, the net effect is positive for me—my shop shows up alongside others but I benefit from the shared marketing and audience. It’s been a wise decision for my small-shop business."
+  },
+  {
+    "id": 14,
+  "reviewer": "Diego Ruiz",
+  "gender": "male",
+  "rating": 5,
+    "date": "2021-09-09",
+    "short": "What surprised ...",
+    "full": "What surprised me: it wasn’t just new customers, but also new insights. I started getting feedback via the platform’s buyer-interaction tools (ratings, comments) which helped me refine product descriptions, shipping times and packaging. That reduced complaints and improved my overall rating."
+  },
+  {
+    "id": 15,
+  "reviewer": "Liu Wei",
+  "gender": "male",
+  "rating": 5,
+    "date": "2015-12-30",
+    "short": "If I had to sum...",
+    "full": "If I had to sum it up: this marketplace solved my bottleneck of “finding consistent buyers”. With that solved, I can shift my energy to improving product range, managing fulfillment and building my brand reputation. The difference shows in the numbers and in my stress levels."
+  }
+]
