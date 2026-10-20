@@ -18,6 +18,18 @@ const STATUS = {
   voided: 'Rejected',
 };
 
+const REVIEW_AVATARS = {
+  male: [1, 2, 4, 10, 12, 21, 22, 25, 26],
+  female: [5, 7, 8, 9, 13, 14, 15, 17, 18, 19, 32],
+};
+
+function reviewAvatar(review) {
+  const gender = review.gender === 'female' ? 'female' : 'male';
+  const pool = REVIEW_AVATARS[gender];
+  const imageNumber = pool[(review.id - 1) % pool.length];
+  return `/market-reviews/avatars/${gender === 'female' ? 'woman' : 'man'}${imageNumber}-thumb-large.webp`;
+}
+
 export default function WorkerHome({ session }) {
   const { t: trText, language } = useLanguage();
   const [hub, setHub] = useState(null);
@@ -121,21 +133,22 @@ export default function WorkerHome({ session }) {
               </div>
               <span className="client-testimonials-rating">{marketReviews.length} customer reviews</span>
             </div>
-            {[marketReviews, [...marketReviews].reverse()].map((reviews, row) => (
-              <div className="client-testimonial-marquee" key={row} aria-label={`Customer review marquee ${row + 1}`}>
-                <div className={`client-testimonial-track${row ? ' reverse' : ''}`}>
-                  {[...reviews, ...reviews].map((review, index) => (
-                    <article className="client-testimonial" key={`${row}-${review.id}-${index}`} aria-hidden={index >= reviews.length}>
+            <div className="client-testimonial-marquee" aria-label="Customer reviews">
+              <div className="client-testimonial-track">
+                {[...marketReviews, ...marketReviews].map((review, index) => (
+                  <article className="client-testimonial" key={`${review.id}-${index}`} aria-hidden={index >= marketReviews.length}>
+                    <div className="client-testimonial-person">
+                      <img src={reviewAvatar(review)} alt="" loading="lazy" />
+                      <div><b>{review.reviewer}</b><span>{review.date}</span></div>
                       <div className="client-testimonial-stars" aria-label={`${review.rating} out of 5 stars`}>
                         {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)} <span>{review.rating} / 5</span>
                       </div>
-                      <blockquote>“{review.full}”</blockquote>
-                      <div className="client-testimonial-person"><b>{review.reviewer}</b><span>{review.date}</span></div>
-                    </article>
-                  ))}
-                </div>
+                    </div>
+                    <blockquote>“{review.full}”</blockquote>
+                  </article>
+                ))}
               </div>
-            ))}
+            </div>
           </section>
 
           <div className="section-h">
